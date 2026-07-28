@@ -1,0 +1,40 @@
+---
+name: retro-blog
+description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 임시저장(초안) 업로드까지 수행한다. "블로그로 내보내", "velog에 올려줘", "회고 글 써줘" 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
+---
+
+# retro-blog — 회고 스펙 → velog 초안
+
+## 전제
+
+- `retro/spec.md`가 없으면: "먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
+- 업로드는 항상 **임시저장(초안)** 까지만. 공개 발행 버튼은 사용자가 직접 누른다.
+
+## 절차
+
+1. `retro/spec.md`를 Read → `references/velog-style.md` 가이드에 따라 글을 작성해
+   `retro/out/blog/YYYY-MM-DD-<slug>.md`로 저장한다.
+   - frontmatter: `title`(필수), `tags`(3~5개 리스트), `thumbnail`(선택)
+   - 이미지는 **MD 파일 기준 상대 경로**로 적는다: `../../assets/auto/….png`
+2. 초안 전문을 사용자에게 보여주고 승인받는다. 수정 요청은 반영 후 재확인.
+3. 업로드 실행:
+   `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md" --draft`
+4. 성공(종료 코드 0): 출력된 확인 URL(https://velog.io/saves)과 편집 URL을 사용자에게 전달.
+5. 실패 폴백(종료 코드별):
+   - **2 (토큰 없음/만료)**: 아래 "최초 설정"을 안내하고, 완료되면 3번부터 재시도.
+   - **3/4/5 (업로드·API·형식 실패)**: "MD 파일이 `retro/out/blog/`에 있으니 velog 에디터에
+     통째로 붙여넣고 이미지를 드래그하면 됩니다"라고 안내한다. 이미지 URL 치환본
+     (`*.published.md`)이 생성돼 있으면 그 파일을 붙여넣으라고 안내한다(이미지 재업로드 불필요).
+
+## 최초 설정 (velog 토큰)
+
+1. 브라우저에서 velog.io 로그인 → 개발자도구(F12) → Application → Cookies → https://velog.io
+2. `access_token`, `refresh_token` 값을 복사
+3. 터미널에서 실행: `python3 "<skill-dir>/scripts/velog_publish.py" setup`
+   (`~/.config/velog-retro/tokens.json`에 0600 권한으로 저장된다. 토큰은 절대 채팅에 붙여넣지
+   않게 하고, 위 명령을 사용자가 직접 실행하도록 안내한다 — `! ` 접두사로 실행 가능.)
+
+## 주의
+
+- velog 비공식 API 사용 — 언제든 변경될 수 있다. 실패해도 MD 폴백이 항상 존재한다.
+- 토큰을 로그·대화·커밋에 절대 노출하지 않는다.

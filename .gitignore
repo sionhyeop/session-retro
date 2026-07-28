@@ -3,8 +3,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# 도그푸딩 산출물 중 민감한 원본 트랜스크립트는 커밋 금지
-retro/archive/
+# 도그푸딩 산출물(회고 스펙·블로그·덱·원본 트랜스크립트)은 이 저장소에 커밋하지 않음
+retro/
 
 # 토큰류는 어떤 형태로도 커밋 금지 (원래 ~/.config/velog-retro/에 저장됨)
 *tokens.json

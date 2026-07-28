@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>회고 발표</title>
+<style>
+  :root { --bg:#111418; --fg:#e8eaed; --dim:#9aa0a6; --accent:#7aa2f7; --card:#1b2027; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif; }
+  #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  .slide { width:1280px; height:720px; padding:72px 88px; display:none; flex-direction:column;
+    justify-content:center; gap:28px; transform-origin:center; }
+  .slide.active { display:flex; }
+  h1 { font-size:64px; line-height:1.2; } h2 { font-size:44px; color:var(--accent); }
+  h3 { font-size:32px; } p,li { font-size:28px; line-height:1.55; color:var(--fg); }
+  ul { padding-left:1.2em; display:flex; flex-direction:column; gap:14px; }
+  .dim { color:var(--dim); font-size:22px; }
+  code,pre { font-family:ui-monospace,Consolas,monospace; background:var(--card); border-radius:8px; }
+  code { padding:2px 8px; font-size:24px; } pre { padding:20px; font-size:22px; overflow:hidden; }
+  img { max-width:100%; max-height:480px; border-radius:12px; }
+  .caption { color:var(--dim); font-size:20px; text-align:center; }
+  .fail { color:#f7768e; } .ok { color:#9ece6a; }
+
+  .slide-title { align-items:flex-start; } .slide-title h1 { font-size:72px; }
+  .slide-section { align-items:center; text-align:center; background:linear-gradient(180deg,var(--bg),#151a21); }
+  .slide-image { align-items:center; }
+  .slide-two-col .cols { display:grid; grid-template-columns:1fr 1fr; gap:40px; }
+  .slide-two-col .col { background:var(--card); border-radius:16px; padding:32px; }
+  .slide-quote { align-items:center; text-align:center; }
+  .slide-quote blockquote { font-size:40px; line-height:1.5; max-width:1000px; }
+  .slide-end { align-items:center; text-align:center; }
+
+  #hud { position:fixed; right:16px; bottom:12px; color:var(--dim); font-size:14px; z-index:9; }
+  @media print {
+    #hud { display:none; }
+    #stage { position:static; display:block; }
+    .slide { display:flex !important; transform:none !important; page-break-after:always;
+      width:100%; height:100vh; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+<!-- SLIDES:START -->
+<section class="slide slide-title">
+  <p class="dim">2026-07-28 · 회고</p>
+  <h1>제목이 들어갈 자리</h1>
+  <p class="dim">발표자</p>
+</section>
+<section class="slide slide-section"><h2>섹션 제목</h2><p class="dim">부제</p></section>
+<section class="slide slide-content">
+  <h2>내용 슬라이드</h2>
+  <ul><li>핵심 1</li><li class="fail">시도 → 실패한 것</li><li class="ok">해결</li></ul>
+</section>
+<section class="slide slide-image">
+  <h2>이미지 슬라이드</h2><img src="" alt=""><p class="caption">캡션</p>
+</section>
+<section class="slide slide-two-col">
+  <h2>비교</h2>
+  <div class="cols"><div class="col"><h3>A안</h3><p>…</p></div><div class="col"><h3>B안</h3><p>…</p></div></div>
+</section>
+<section class="slide slide-quote"><blockquote>"배운 점 한 문장"</blockquote></section>
+<section class="slide slide-end"><h1>감사합니다</h1><p class="dim">Q&amp;A</p></section>
+<!-- SLIDES:END -->
+</div>
+<div id="hud"><span id="pos"></span> · ←/→ 이동 · 인쇄(Ctrl+P)로 PDF</div>
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  let cur = Math.min(Math.max(parseInt(location.hash.slice(1) || "1", 10) - 1, 0), slides.length - 1);
+  function fit() {
+    const s = Math.min(innerWidth / 1280, innerHeight / 720) * 0.96;
+    slides.forEach(el => el.style.transform = `scale(${s})`);
+  }
+  function show(i) {
+    cur = Math.min(Math.max(i, 0), slides.length - 1);
+    slides.forEach((el, k) => el.classList.toggle("active", k === cur));
+    document.getElementById("pos").textContent = `${cur + 1} / ${slides.length}`;
+    history.replaceState(null, "", "#" + (cur + 1));
+  }
+  addEventListener("keydown", e => {
+    if (["ArrowRight", " ", "PageDown"].includes(e.key)) show(cur + 1);
+    else if (["ArrowLeft", "PageUp"].includes(e.key)) show(cur - 1);
+    else if (e.key === "Home") show(0);
+    else if (e.key === "End") show(slides.length - 1);
+  });
+  addEventListener("click", e => {
+    if (e.clientX > innerWidth / 2) show(cur + 1); else show(cur - 1);
+  });
+  addEventListener("resize", fit);
+  fit(); show(cur);
+</script>
+</body>
+</html>

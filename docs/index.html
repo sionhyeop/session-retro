@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>session-retro 가이드 — Claude 세션이 곧 회고가 됩니다</title>
+<style>
+  :root {
+    --bg:#111418; --fg:#e8eaed; --dim:#9aa0a6; --accent:#7aa2f7;
+    --card:#1b2027; --line:#2a313b; --ok:#9ece6a; --warn:#e0af68; --fail:#f7768e;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7f8fa; --fg:#1b2027; --dim:#5f6672; --accent:#3b6fd4;
+      --card:#ffffff; --line:#dde2e9; --ok:#3d7a1f; --warn:#9a6b00; --fail:#c43b52; }
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--fg); line-height:1.65;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:48px 24px 96px; }
+  h1 { font-size:44px; line-height:1.25; margin:16px 0 12px; }
+  h2 { font-size:26px; margin:64px 0 16px; color:var(--accent); }
+  h3 { font-size:19px; margin:20px 0 8px; }
+  p { margin:10px 0; } .dim { color:var(--dim); }
+  code { font-family:ui-monospace,Consolas,monospace; background:var(--card);
+    border:1px solid var(--line); border-radius:6px; padding:2px 7px; font-size:.92em; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px 20px; overflow-x:auto; margin:14px 0; }
+  pre code { background:none; border:none; padding:0; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; }
+  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; font-size:.9em; }
+  .badge { display:inline-block; background:var(--card); border:1px solid var(--line);
+    border-radius:999px; padding:4px 14px; font-size:14px; color:var(--dim); }
+  .cmds { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:24px 0; }
+  .cmd { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .cmd b { color:var(--accent); font-size:18px; font-family:ui-monospace,Consolas,monospace; }
+  .cmd p { font-size:14.5px; color:var(--dim); margin-top:6px; }
+
+  /* 흐름 도식 */
+  .flow { display:flex; flex-direction:column; align-items:center; margin:24px 0; }
+  .node { background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:14px 22px; text-align:center; min-width:260px; max-width:100%; }
+  .node b { display:block; } .node small { color:var(--dim); }
+  .node.auto { border-style:dashed; }
+  .node.hot { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .arrow { color:var(--dim); padding:6px 0; text-align:center; font-size:14px; }
+  .arrow::before { content:"↓"; display:block; font-size:20px; color:var(--accent); }
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; max-width:640px; }
+  .split .lane { display:flex; flex-direction:column; align-items:center; }
+  @media (max-width:560px) { .split { grid-template-columns:1fr; } }
+
+  .principles { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0; }
+  .pr { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .pr b { display:block; margin-bottom:4px; }
+  .pr.ok b { color:var(--ok); } .pr.warn b { color:var(--warn); } .pr.info b { color:var(--accent); }
+  details { background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:14px 18px; margin:10px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  details p, details pre { margin-top:10px; }
+  .steps { counter-reset:step; list-style:none; margin:14px 0; }
+  .steps li { counter-increment:step; position:relative; padding:8px 0 8px 44px; }
+  .steps li::before { content:counter(step); position:absolute; left:0; top:8px;
+    width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--bg);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; }
+  footer { margin-top:72px; padding-top:20px; border-top:1px solid var(--line);
+    color:var(--dim); font-size:14px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <span class="badge">session-retro v0.1 · Claude Code 스킬</span>
+  <h1>Claude 세션이<br>곧 회고가 됩니다</h1>
+  <p class="dim">Claude Code로 삽질한 과정(문제 → 시도 → 실패 → 해결)은 이미 전부 기록되고 있습니다.
+  session-retro는 그 기록이 사라지기 전에 건져서, 사람이 읽을 수 있는 <b>velog 글</b>과
+  <b>발표 덱</b>으로 바꿔줍니다.</p>
+
+  <div class="cmds">
+    <div class="cmd"><b>/retro</b><p>세션을 증류해 회고 스펙(retro/spec.md)을 만들거나 갱신. 세션 중간에 다시 부르면 체크포인트.</p></div>
+    <div class="cmd"><b>/retro-blog</b><p>스펙 → velog 글 초안 → 이미지 업로드 → <b>임시저장</b>까지 자동. 발행 버튼은 내가.</p></div>
+    <div class="cmd"><b>/retro-ppt</b><p>스펙 → 단일 파일 HTML 발표 덱. ←/→로 넘기고 Ctrl+P로 PDF.</p></div>
+  </div>
+
+  <h2>한눈에 보는 파이프라인</h2>
+  <div class="flow">
+    <div class="node"><b>Claude Code 세션</b><small>고민 · 시도 · 실패 · 해결 — 전부 JSONL로 기록 중</small></div>
+    <div class="arrow">자동 — 세션 종료·압축 직전 훅이 복사 (retro/ 폴더가 있는 프로젝트만)</div>
+    <div class="node auto"><b>retro/archive/*.jsonl</b><small>원본 영속화 — 30일 자동 삭제·컨텍스트 압축으로부터 보호</small></div>
+    <div class="arrow">"회고 정리해줘" 또는 /retro</div>
+    <div class="node hot"><b>retro/spec.md — 회고 스펙</b><small>단일 진실 소스. 사람이 직접 고쳐도 됨. 여기까지만 되면 출력은 언제든.</small></div>
+    <div class="arrow">원하는 형식으로, 몇 번이든</div>
+    <div class="split">
+      <div class="lane">
+        <div class="node"><b>/retro-blog</b><small>velog 글 + 이미지 CDN 업로드<br>→ 임시저장 + 미리보기 URL</small></div>
+      </div>
+      <div class="lane">
+        <div class="node"><b>/retro-ppt</b><small>단일 파일 HTML 덱<br>→ 브라우저 발표 · 인쇄 → PDF</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>이렇게 말하면 됩니다</h2>
+  <p>슬래시 명령을 외울 필요 없습니다. 스킬은 아래 같은 <b>자연어에도 반응</b>합니다.</p>
+  <table>
+    <tr><th>하고 싶은 것</th><th>Claude에게 이렇게</th><th>일어나는 일</th></tr>
+    <tr><td>세션 정리</td><td>"지금까지 한 거 회고로 정리해줘"</td><td>retro/spec.md 생성, 이미지 배치 제안</td></tr>
+    <tr><td>중간 저장</td><td>"체크포인트 찍어줘"</td><td>spec.md에 이후 진행분 병합</td></tr>
+    <tr><td>블로그 초안</td><td>"이거 velog에 올려줘"</td><td>글 작성 → 승인 → 임시저장 업로드</td></tr>
+    <tr><td>발표 자료</td><td>"발표자료로 만들어줘"</td><td>16:9 HTML 덱 생성 + 경로 안내</td></tr>
+    <tr><td>과거 세션 회고</td><td>"어제 세션으로 회고 만들어줘"</td><td>~/.claude/projects에서 소급 수집(30일 이내)</td></tr>
+  </table>
+
+  <h2>처음 한 번만 하면 되는 것</h2>
+  <ol class="steps">
+    <li><b>설치</b> — 저장소에서 <code>bash install.sh</code> (스킬 3개 연결 + 백업 훅 등록, 기존 설정은 백업 후 병합)</li>
+    <li><b>프로젝트 활성화</b> — 회고를 남기고 싶은 프로젝트에서 <code>/retro</code> 한 번. <code>retro/</code> 폴더가 생기는 순간부터 그 프로젝트의 세션이 자동 백업됩니다.</li>
+    <li><b>velog 토큰</b> (블로그 쓸 때 최초 1회) — velog.io 로그인 → F12 → Application → Cookies에서 <code>access_token</code>·<code>refresh_token</code> 복사 → <code>python3 skills/retro-blog/scripts/velog_publish.py setup</code></li>
+    <li><b>권장</b> — <code>~/.claude/settings.json</code>에 <code>"cleanupPeriodDays": 90</code> (원본 보존 기간 30→90일)</li>
+  </ol>
+
+  <h2>이미지는 이렇게 들어갑니다</h2>
+  <div class="flow">
+    <div class="split">
+      <div class="lane">
+        <div class="node auto"><b>자동 캡처</b><small>작업 중 브라우저 검증 스크린샷을<br><code>retro/assets/auto/</code>에 저장하는 관례</small></div>
+      </div>
+      <div class="lane">
+        <div class="node auto"><b>직접 드롭</b><small>넣고 싶은 이미지를 아무 때나<br><code>retro/assets/inbox/</code>에 던져두기</small></div>
+      </div>
+    </div>
+    <div class="arrow">/retro 실행 시</div>
+    <div class="node"><b>큐레이션</b><small>파일 시각 ↔ 세션 타임라인 대조 + 이미지 내용 직접 확인 → "이 이미지는 문제 2에 어울려요" 제안</small></div>
+    <div class="arrow">내가 승인하면</div>
+    <div class="node hot"><b>spec.md에 배치 확정</b><small>블로그(CDN 업로드)와 덱(파일 내장)에 자동 반영 · 스크린샷 없는 구간은 mermaid 다이어그램 제안</small></div>
+  </div>
+
+  <h2>프로젝트에 무엇이 남나</h2>
+<pre><code>내프로젝트/
+└── retro/
+    ├── archive/          ← 세션 원본 백업 (훅이 자동으로)
+    ├── assets/auto/      ← 자동 캡처 스크린샷
+    ├── assets/inbox/     ← 내가 던져둔 이미지
+    ├── spec.md           ← 회고 스펙 (단일 진실 소스)
+    └── out/
+        ├── blog/…​.md     ← velog 초안 (+ 이미지 URL 치환본 *.published.md)
+        └── ppt/…​.html    ← 발표 덱 (그 파일 하나로 완결)</code></pre>
+
+  <h2>안전 원칙</h2>
+  <div class="principles">
+    <div class="pr ok"><b>초안까지만</b>velog엔 항상 임시저장으로만 올립니다. 공개 발행 버튼은 사람이 누릅니다.</div>
+    <div class="pr ok"><b>글은 절대 안 사라짐</b>업로드가 실패해도 MD 파일이 로컬에 남아 에디터에 붙여넣으면 끝.</div>
+    <div class="pr warn"><b>비공식 API</b>velog는 공식 API가 없어 내부 API를 씁니다. 깨질 수 있지만, 깨져도 위 폴백이 있습니다.</div>
+    <div class="pr info"><b>훅은 무해</b>retro/ 있는 프로젝트에서만, 복사만, 실패해도 세션에 영향 0.</div>
+    <div class="pr info"><b>토큰은 로컬에만</b><code>~/.config/velog-retro/</code>(0600). 채팅·로그·git에 노출하지 않습니다.</div>
+  </div>
+
+  <h2>막혔을 때</h2>
+  <details><summary>업로드가 실패했어요</summary>
+    <p>글은 이미 <code>retro/out/blog/</code>에 있습니다. velog 에디터에 통째로 붙여넣고 이미지를 드래그하세요.
+    <code>*.published.md</code>가 있다면 이미지가 이미 CDN URL로 치환된 것이니 그 파일을 쓰면 이미지 작업도 필요 없습니다.</p></details>
+  <details><summary>토큰이 만료됐대요</summary>
+    <p>쿠키를 다시 복사해서 <code>python3 skills/retro-blog/scripts/velog_publish.py setup</code>을 다시 실행하면 됩니다. (access_token 수명 ~1시간, refresh_token ~30일 — 평소엔 자동 회전됩니다.)</p></details>
+  <details><summary>훅이 백업을 안 해요</summary>
+    <p>① 그 프로젝트에 <code>retro/</code> 폴더가 있나요? (<code>/retro</code> 한 번 실행) ② 설치 후 새로 시작한 세션인가요? ③ <code>retro/archive/.hook.log</code>에 기록이 남습니다.</p></details>
+  <details><summary>지난주에 한 세션도 회고로 만들 수 있나요</summary>
+    <p>네. 원본이 <code>~/.claude/projects/</code>에 30일간 남아 있어 <code>/retro</code>가 소급 수집합니다. 그래서 보존 기간을 90일로 늘려두길 권장합니다.</p></details>
+  <details><summary>PPT를 .pptx 파일로 받고 싶어요</summary>
+    <p>v1은 HTML 덱 + 인쇄 PDF까지입니다. HTML→pptx 자동 변환은 슬라이드가 이미지로 박제되는 한계가 있어, 편집 가능한 .pptx는 v2(PptxGenJS 경로)로 계획되어 있습니다.</p></details>
+
+  <footer>
+    session-retro v0.1 · 2026-07-28 · 자세한 내부 구조는 저장소의
+    <code>docs/superpowers/specs/</code>(설계) · <code>docs/research/</code>(사전 조사) 참고.
+    이 페이지는 외부 요청 없는 단일 파일입니다 — 그냥 더블클릭해서 여세요.
+  </footer>
+</main>
+</body>
+</html>

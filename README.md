@@ -1,7 +1,43 @@
 # session-retro
 
-Claude Code 세션의 시행착오(문제→시도→실패→해결)를 **회고 스펙**으로 증류해
-**velog 블로그 초안**과 **단일 파일 HTML 발표 덱**으로 변환하는 스킬 모음.
+**Claude Code 세션이 곧 회고가 됩니다.** 세션 속 시행착오(문제→시도→실패→해결)를 증류해
+**velog 블로그 초안**과 **단일 파일 HTML 발표 덱**으로 내보내는 스킬 모음.
+
+> 📖 **처음이라면 도식 가이드부터**: [`docs/index.html`](docs/index.html)을 브라우저에서 여세요
+> (Windows 탐색기에서 더블클릭 — 외부 의존성 없는 단일 파일입니다).
+
+## ⚡ 3분 시작
+
+```bash
+bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은 백업 후 병합, 멱등)
+```
+
+② 회고를 남기고 싶은 프로젝트의 Claude Code에서:
+
+```
+지금까지 한 거 회고로 정리해줘        ← /retro : retro/spec.md 생성
+이거 velog에 올려줘                  ← /retro-blog : 초안 작성 → 임시저장 업로드
+발표자료로도 만들어줘                ← /retro-ppt : HTML 덱 생성
+```
+
+③ 결과물 위치: `retro/out/blog/*.md` (velog 임시저장까지 업로드됨), `retro/out/ppt/*.html` (더블클릭 → 발표, Ctrl+P → PDF)
+
+`/retro`를 한 번 실행해 `retro/` 폴더가 생긴 프로젝트는, 이후 세션 종료·컨텍스트 압축 시
+트랜스크립트가 `retro/archive/`에 **자동 백업**됩니다 (opt-in 방식 — 다른 프로젝트는 건드리지 않음).
+
+## 이렇게 말하면 됩니다
+
+슬래시 명령을 외울 필요 없습니다 — 자연어로 트리거됩니다.
+
+| 하고 싶은 것 | Claude에게 이렇게 | 일어나는 일 |
+|---|---|---|
+| 세션 정리 | "회고 정리해줘" / `/retro` | `retro/spec.md` 생성·갱신 + 이미지 배치 제안 |
+| 중간 저장 | "체크포인트 찍어줘" | spec에 이후 진행분 병합 (실시간 중간 정리) |
+| 블로그 | "velog에 올려줘" / `/retro-blog` | 초안 작성 → 승인 → 이미지 CDN 업로드 → **임시저장** |
+| 발표 자료 | "발표자료 만들어줘" / `/retro-ppt` | 16:9 단일 파일 HTML 덱 |
+| 과거 세션 | "어제 세션으로 회고 만들어줘" | `~/.claude/projects`에서 소급 수집 (30일 이내) |
+
+## 전체 그림
 
 ```
 세션 진행 중 ─(SessionEnd/PreCompact 훅)→ retro/archive/*.jsonl   ← 원본 영속화
@@ -10,31 +46,16 @@ Claude Code 세션의 시행착오(문제→시도→실패→해결)를 **회�
 /retro-ppt   : spec → 단일 파일 HTML 발표 덱
 ```
 
-## 설치
-
-```bash
-bash install.sh   # 스킬 3개 심링크 + 백업 훅 등록(~/.claude/settings.json, 자동 백업 후 병합)
-```
-
-## 사용법
-
-| 명령 | 하는 일 |
-|---|---|
-| `/retro` | 세션 트랜스크립트 → `retro/spec.md` 증류·갱신 (세션 중간 재호출 = 체크포인트) |
-| `/retro-blog` | 스펙 → velog 글 초안 → 이미지 CDN 업로드 → **임시저장** 업로드 |
-| `/retro-ppt` | 스펙 → 단일 파일 HTML 발표 덱 (←/→ 이동, Ctrl+P로 PDF) |
-
-처음 한 번 `/retro`를 실행하면 프로젝트에 `retro/` 구조가 생기고,
-그때부터 세션 종료·컨텍스트 압축 시 트랜스크립트가 `retro/archive/`에 자동 백업된다.
-(훅은 `retro/` 폴더가 있는 프로젝트에서만 동작하는 opt-in 방식이다.)
+`retro/spec.md`가 단일 진실 소스입니다. 블로그와 덱은 같은 스펙의 다른 렌더링이라
+언제든, 몇 번이든, 어느 형식으로든 다시 뽑을 수 있고 사람이 직접 편집해도 됩니다.
 
 ## 이미지 넣기
 
 - **자동**: 브라우저 검증 스크린샷을 `retro/assets/auto/<타임스탬프>-<설명>.png`로 저장하는 관례
-- **수동**: 아무 이미지나 `retro/assets/inbox/`에 던져두면 /retro가 맥락에 맞게 배치를 제안
-- 스크린샷이 없는 구간은 mermaid 다이어그램을 제안
+- **수동**: 아무 이미지나 `retro/assets/inbox/`에 던져두면 `/retro`가 타임라인·내용을 대조해 배치를 제안
+- 승인한 것만 spec에 기록되고, 스크린샷 없는 구간은 mermaid 다이어그램을 제안
 
-## velog 토큰 설정 (최초 1회)
+## velog 토큰 설정 (블로그 쓸 때 최초 1회)
 
 velog.io 로그인 → F12 → Application → Cookies → `access_token`/`refresh_token` 복사 후:
 
@@ -42,9 +63,9 @@ velog.io 로그인 → F12 → Application → Cookies → `access_token`/`refre
 python3 skills/retro-blog/scripts/velog_publish.py setup
 ```
 
-`~/.config/velog-retro/tokens.json`(0600)에 저장된다. **비공식 API**를 사용하므로
-언제든 깨질 수 있고, 깨져도 MD 파일 폴백으로 항상 글을 건질 수 있다.
-업로드는 항상 임시저장(초안)까지만 — 공개 발행은 velog에서 직접 누른다.
+`~/.config/velog-retro/tokens.json`(0600)에 저장됩니다. **비공식 API**라 언제든 깨질 수 있지만,
+깨져도 MD 파일 폴백으로 항상 글을 건질 수 있습니다. 업로드는 항상 임시저장(초안)까지만 —
+공개 발행은 velog에서 직접 누릅니다.
 
 ## 권장 설정
 
@@ -58,6 +79,7 @@ python3 -m pytest tests/ -q && bash tests/test_hook.sh && bash tests/test_instal
 
 ## 문서
 
+- **도식 가이드(온보딩)**: `docs/index.html`
 - 설계: `docs/superpowers/specs/2026-07-28-session-retro-design.md`
 - 구현 계획: `docs/superpowers/plans/2026-07-28-session-retro.md`
 - 사전 조사(선행 사례·기술 검증): `docs/research/2026-07-28-prior-art.md`

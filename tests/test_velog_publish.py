@@ -69,3 +69,107 @@ def test_upload_http_error_raises(home, tmp_path, monkeypatch):
     monkeypatch.setattr(vp, "_http", lambda *a, **k: (500, [], b"boom"))
     with pytest.raises(vp.VelogError):
         vp.upload_image(img, {"access_token": "a"})
+
+
+MD = """---
+title: 테스트 회고
+tags: [Claude Code, 회고]
+---
+
+본문입니다.
+
+![스크린샷](assets/a.png)
+"""
+
+
+def test_parse_frontmatter():
+    meta, body = vp.parse_frontmatter(MD)
+    assert meta["title"] == "테스트 회고"
+    assert meta["tags"] == ["Claude Code", "회고"]
+    assert body.startswith("본문입니다.")
+
+
+def test_parse_frontmatter_missing_title():
+    meta, _ = vp.parse_frontmatter("---\ntags: []\n---\n본문")
+    assert "title" not in meta
+
+
+def test_write_post_draft_payload(home, monkeypatch):
+    captured = {}
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        captured["url"], captured["data"] = url, json.loads(data)
+        return 200, [], json.dumps({"data": {"writePost": {"id": "p-1", "url_slug": "slug"}}}).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    result = vp.write_post_draft("제목", "본문", ["a"], None, {"access_token": "a", "refresh_token": "r"})
+    assert result["id"] == "p-1"
+    assert captured["url"] == vp.GRAPHQL_URL
+    inp = captured["data"]["variables"]["input"]
+    assert inp["is_temp"] is True and inp["is_markdown"] is True
+    assert inp["title"] == "제목" and inp["tags"] == ["a"]
+    assert inp["meta"] == {}  # 레퍼런스 구현(velog-mcp) 확인 결과 필수 필드
+
+
+def test_write_post_graphql_error_raises(home, monkeypatch):
+    monkeypatch.setattr(
+        vp, "_http",
+        lambda *a, **k: (200, [], json.dumps({"errors": [{"message": "nope"}]}).encode()),
+    )
+    with pytest.raises(vp.VelogError):
+        vp.write_post_draft("t", "b", [], None, {"access_token": "a"})
+
+
+def test_token_rotation_persisted(home, monkeypatch):
+    vp.save_tokens({"access_token": "old", "refresh_token": "r"})
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        return 200, [("Set-Cookie", "access_token=new; Path=/; HttpOnly")], json.dumps(
+            {"data": {"writePost": {"id": "p", "url_slug": "s"}}}
+        ).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    tokens = vp.load_tokens()
+    vp.write_post_draft("t", "b", [], None, tokens)
+    assert vp.load_tokens()["access_token"] == "new"
+
+
+def test_cmd_publish_end_to_end(home, tmp_path, monkeypatch):
+    blog = tmp_path / "out" / "blog"
+    blog.mkdir(parents=True)
+    (blog / "post.md").write_text(MD, encoding="utf-8")
+    assets = blog / "assets"
+    assets.mkdir()
+    (assets / "a.png").write_bytes(b"img")
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/a.png")
+    monkeypatch.setattr(vp, "write_post_draft", lambda *a, **k: {"id": "p-9", "url_slug": "s"})
+    rc = vp.cmd_publish(str(blog / "post.md"))
+    assert rc == 0
+    published = (blog / "post.published.md").read_text(encoding="utf-8")
+    assert "velcdn.com" in published
+
+
+def test_cmd_publish_without_tokens_exit_2(home, tmp_path):
+    md = tmp_path / "p.md"
+    md.write_text(MD, encoding="utf-8")
+    assert vp.cmd_publish(str(md)) == 2
+
+
+def test_cmd_publish_without_title_exit_5(home, tmp_path):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text("제목 frontmatter 없음", encoding="utf-8")
+    assert vp.cmd_publish(str(md)) == 5
+
+
+def test_cmd_publish_auth_error_exit_2(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD.replace("![스크린샷](assets/a.png)", ""), encoding="utf-8")
+
+    def raise_auth(*a, **k):
+        raise vp.VelogError("인증 실패(401) — 토큰 만료 가능성. setup을 다시 실행하세요.")
+
+    monkeypatch.setattr(vp, "write_post_draft", raise_auth)
+    assert vp.cmd_publish(str(md)) == 2

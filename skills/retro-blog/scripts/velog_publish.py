@@ -136,5 +136,115 @@ def cmd_setup():
     return 0
 
 
+# 2026-07-28 stoneHee99/velog-mcp src/velog-client.ts에서 확인한 실제 동작 형태.
+# input의 meta: {} 는 필수, url_slug는 ""이면 velog가 제목으로 자동 생성.
+WRITE_POST_MUTATION = """
+mutation WritePost($input: WritePostInput!) {
+  writePost(input: $input) {
+    id
+    url_slug
+    user {
+      id
+      username
+    }
+  }
+}
+""".strip()
+
+
+def parse_frontmatter(md_text):
+    """단순 YAML frontmatter 파서(외부 의존 없이 title/tags/thumbnail만 지원)."""
+    meta = {}
+    body = md_text
+    m = re.match(r"^---\n(.*?)\n---\n?", md_text, re.DOTALL)
+    if m:
+        body = md_text[m.end():]
+        for line in m.group(1).splitlines():
+            kv = re.match(r"^(\w+):\s*(.*)$", line.strip())
+            if not kv:
+                continue
+            key, value = kv.group(1), kv.group(2).strip()
+            if not value:
+                continue
+            if value.startswith("[") and value.endswith("]"):
+                meta[key] = [v.strip().strip("'\"") for v in value[1:-1].split(",") if v.strip()]
+            else:
+                meta[key] = value.strip("'\"")
+    return meta, body.lstrip("\n")
+
+
+def write_post_draft(title, body, tags, thumbnail, tokens):
+    payload = {
+        "operationName": "WritePost",
+        "query": WRITE_POST_MUTATION,
+        "variables": {"input": {
+            "title": title, "body": body, "tags": tags,
+            "is_markdown": True, "is_temp": True, "is_private": False,
+            "url_slug": "", "meta": {}, "thumbnail": thumbnail,
+            "series_id": None, "token": None,
+        }},
+    }
+    status, resp_headers, resp_body = _http(
+        GRAPHQL_URL, method="POST",
+        headers={"Content-Type": "application/json", "Cookie": cookie_header(tokens)},
+        data=json.dumps(payload).encode(),
+    )
+    rotate_tokens(resp_headers, tokens)
+    if status in (401, 403):
+        raise VelogError(f"인증 실패({status}) — 토큰 만료 가능성. setup을 다시 실행하세요.")
+    try:
+        parsed = json.loads(resp_body)
+    except json.JSONDecodeError:
+        raise VelogError(f"GraphQL 응답 해석 실패(HTTP {status})")
+    if status != 200 or parsed.get("errors"):
+        msg = (parsed.get("errors") or [{}])[0].get("message", f"HTTP {status}")
+        raise VelogError(f"WritePost 실패: {msg}")
+    return parsed["data"]["writePost"]
+
+
+def cmd_publish(md_path, draft=True):
+    path = Path(md_path)
+    if not path.is_file():
+        print(f"에러: MD 파일 없음 — {path}", file=sys.stderr)
+        return 5
+    tokens = load_tokens()
+    if not tokens or not tokens.get("access_token"):
+        print("에러: 토큰 없음. 먼저 setup을 실행하세요.", file=sys.stderr)
+        return 2
+    meta, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+    title = meta.get("title")
+    if not title:
+        print("에러: frontmatter에 title이 필요합니다.", file=sys.stderr)
+        return 5
+    try:
+        new_body, n = rewrite_images(body, path.parent, tokens)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 3
+    published = path.with_suffix(".published.md")
+    published.write_text(f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
+    print(f"이미지 {n}개 업로드, 치환본 저장: {published}")
+    try:
+        result = write_post_draft(title, new_body, meta.get("tags", []), meta.get("thumbnail"), tokens)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 4
+    print("임시저장(초안) 업로드 완료 ✅")
+    print("- 확인: https://velog.io/saves")
+    print(f"- 편집: https://velog.io/write?id={result['id']}")
+    print("- 공개 발행은 velog에서 직접 눌러주세요.")
+    return 0
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["setup"]:
+        return cmd_setup()
+    if argv[:1] == ["publish"] and len(argv) >= 2:
+        return cmd_publish(argv[1], draft="--draft" in argv)
+    print("사용법: velog_publish.py setup | publish <md파일> --draft", file=sys.stderr)
+    return 1
+
+
 if __name__ == "__main__":
-    sys.exit(cmd_setup() if len(sys.argv) > 1 and sys.argv[1] == "setup" else 1)
+    sys.exit(main())

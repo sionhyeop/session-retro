@@ -220,7 +220,7 @@ def test_cmd_publish_end_to_end_writes_sidecar(home, tmp_path, monkeypatch):
     monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/a.png")
     monkeypatch.setattr(
         vp, "write_post",
-        lambda *a, **k: {"id": "p-9", "url_slug": "s", "user": {"username": "mico"}},
+        lambda *a, **k: {"id": "p-9", "url_slug": "s", "user": {"username": "testuser"}},
     )
     rc = vp.cmd_publish(str(blog / "post.md"))
     assert rc == 0
@@ -228,7 +228,7 @@ def test_cmd_publish_end_to_end_writes_sidecar(home, tmp_path, monkeypatch):
     assert "velcdn.com" in published
     sidecar = json.loads((blog / "post.velog.json").read_text(encoding="utf-8"))
     assert sidecar["id"] == "p-9" and sidecar["visibility"] == "private"
-    assert sidecar["username"] == "mico"
+    assert sidecar["username"] == "testuser"
 
 
 def test_cmd_publish_mode_flags(home, tmp_path, monkeypatch):
@@ -309,7 +309,7 @@ def test_fetch_series_uses_v2(home, monkeypatch):
         ]}}).encode()
 
     monkeypatch.setattr(vp, "_http", fake_http)
-    series = vp.fetch_series("mico")
+    series = vp.fetch_series("testuser")
     assert captured["url"] == vp.V2_GRAPHQL
     assert series[0]["name"] == "회고 시리즈"
 

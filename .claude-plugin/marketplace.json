@@ -1,0 +1,13 @@
+{
+  "name": "session-retro",
+  "owner": {
+    "name": "sionhyeop"
+  },
+  "plugins": [
+    {
+      "name": "session-retro",
+      "source": "./",
+      "description": "Claude Code 세션의 시행착오를 회고 스펙으로 증류해 velog 블로그(비공개 발행·이미지 자동 생성)와 단일 파일 HTML 발표 덱으로 변환하는 스킬 모음"
+    }
+  ]
+}

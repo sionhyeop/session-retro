@@ -25,9 +25,9 @@ def test_fetch_posts_payload_and_private_filter(monkeypatch):
         ]})
 
     monkeypatch.setattr(sl, "_http", fake_http)
-    posts = sl.fetch_posts("mico", limit=10)
+    posts = sl.fetch_posts("testuser", limit=10)
     assert captured["url"] == sl.V2_GRAPHQL
-    assert captured["payload"]["variables"] == {"username": "mico", "limit": 10}
+    assert captured["payload"]["variables"] == {"username": "testuser", "limit": 10}
     assert [p["url_slug"] for p in posts] == ["a"]  # 비공개 글 제외
 
 
@@ -39,9 +39,9 @@ def test_fetch_body_payload(monkeypatch):
         return graphql_response({"post": {"title": "공개 글", "body": "본문입니다."}})
 
     monkeypatch.setattr(sl, "_http", fake_http)
-    post = sl.fetch_body("mico", "a")
+    post = sl.fetch_body("testuser", "a")
     assert post["body"] == "본문입니다."
-    assert captured["payload"]["variables"] == {"username": "mico", "url_slug": "a"}
+    assert captured["payload"]["variables"] == {"username": "testuser", "url_slug": "a"}
 
 
 def test_ending_stats_counts():
@@ -55,7 +55,7 @@ def test_ending_stats_counts():
 
 def test_build_corpus_truncates_and_includes_stats():
     posts = [{"title": "긴 글", "body": "습니다. " * 2000, "released_at": "2026-01-01"}]
-    corpus = sl.build_corpus("mico", posts, max_chars=500)
+    corpus = sl.build_corpus("testuser", posts, max_chars=500)
     assert "긴 글" in corpus and "문체 통계" in corpus
     assert "…(이하 생략)" in corpus
     assert len(corpus) < 3000
@@ -63,7 +63,7 @@ def test_build_corpus_truncates_and_includes_stats():
 
 def test_main_no_public_posts_exit_1(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(sl, "fetch_posts", lambda u, limit=10: [])
-    rc = sl.main(["mico", "--out", str(tmp_path / "c.md")])
+    rc = sl.main(["testuser", "--out", str(tmp_path / "c.md")])
     assert rc == 1
     assert "공개 글이 없습니다" in capsys.readouterr().err
 
@@ -74,7 +74,7 @@ def test_main_writes_corpus(monkeypatch, tmp_path):
     ])
     monkeypatch.setattr(sl, "fetch_body", lambda u, s: {"title": "글1", "body": "본문이었습니다."})
     out = tmp_path / "corpus.md"
-    rc = sl.main(["mico", "--out", str(out)])
+    rc = sl.main(["testuser", "--out", str(out)])
     assert rc == 0
     text = out.read_text(encoding="utf-8")
     assert "글1" in text and "본문이었습니다." in text

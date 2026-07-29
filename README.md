@@ -1,18 +1,29 @@
 # session-retro
 
 **Claude Code 세션이 곧 회고가 됩니다.** 세션 속 시행착오(문제→시도→실패→해결)를 증류해
-**velog 블로그 초안**과 **단일 파일 HTML 발표 덱**으로 내보내는 스킬 모음.
+**velog 블로그**(비공개 발행·이미지 자동 생성)와 **단일 파일 HTML 발표 덱**으로 내보내는 스킬 모음.
+
+*Turn your Claude Code sessions into retrospective blog posts (velog) and HTML slide decks — trial-and-error included, images auto-generated.*
+
+![session-retro 온보딩](docs/images/demo-landing.png)
 
 > 📖 **처음이라면 도식 가이드부터**: [`docs/index.html`](docs/index.html)을 브라우저에서 여세요
-> (Windows 탐색기에서 더블클릭 — 외부 의존성 없는 단일 파일입니다).
+> (외부 의존성 없는 단일 파일 — GitHub Pages: 저장소 설정에서 `docs/`로 켜면 그대로 사이트가 됩니다).
 
 ## ⚡ 3분 시작
 
+① 설치 — 둘 중 편한 쪽으로:
+
 ```bash
-bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은 백업 후 병합, 멱등)
+# 방법 A. Claude Code 플러그인 (권장)
+claude plugin marketplace add sionhyeop/session-retro
+claude plugin install session-retro
+
+# 방법 B. 직접 설치
+git clone https://github.com/sionhyeop/session-retro && cd session-retro && bash install.sh
 ```
 
-② 회고를 남기고 싶은 프로젝트의 Claude Code에서:
+② 그다음, 회고를 남기고 싶은 프로젝트의 Claude Code에서:
 
 ```
 지금까지 한 거 회고로 정리해줘        ← /retro : retro/spec.md 생성
@@ -24,6 +35,17 @@ bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은
 
 `/retro`를 한 번 실행해 `retro/` 폴더가 생긴 프로젝트는, 이후 세션 종료·컨텍스트 압축 시
 트랜스크립트가 `retro/archive/`에 **자동 백업**됩니다 (opt-in 방식 — 다른 프로젝트는 건드리지 않음).
+
+## 결과물 미리보기
+
+전부 이 스킬이 실데이터로 자동 생성한 것들입니다 (AI 일러스트 없음):
+
+| 썸네일 타이틀 카드 | 스탯 카드 |
+|---|---|
+| ![타이틀 카드](docs/images/demo-title-card.png) | ![스탯 카드](docs/images/demo-stat-card.png) |
+
+![콘텐츠 맵](docs/images/demo-map.png)
+*콘텐츠 맵 — 에피소드별 진행 상태(⚪🔵🟡🟣🟢)와 이미지 부족 경고, 다음 작성 추천*
 
 ## 이렇게 말하면 됩니다
 
@@ -106,4 +128,11 @@ python3 -m pytest tests/ -q && bash tests/test_hook.sh && bash tests/test_instal
 
 ## v2 후보
 
-편집 가능 .pptx(PptxGenJS), 공개 발행 자동화, Windows 화면 캡처 셸, 플러그인 마켓플레이스 배포
+편집 가능 .pptx(PptxGenJS), velog 시리즈 생성 API, 반응(좋아요·댓글) 대시보드, Windows 화면 캡처 셸
+
+## 라이선스와 면책
+
+MIT. 이 프로젝트는 velog와 무관한 개인 프로젝트이며, velog의 **비공식 내부 API**를 사용합니다 —
+velog 측 변경으로 언제든 동작이 멈출 수 있고(그 경우에도 MD 파일 폴백으로 글은 보존됩니다),
+사용에 따른 책임은 사용자에게 있습니다. 본인 계정의 글을 낮은 빈도로 발행하는 용도로만 쓰세요.
+문서 스킬의 로고 사용: 썸네일의 기술 로고는 각 상표권자의 자산이며 주제 표시 목적으로만 사용됩니다.

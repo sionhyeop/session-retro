@@ -325,6 +325,28 @@ def test_convert_mermaid_failure_keeps_block(home, monkeypatch):
     assert n == 0 and "```mermaid" in new_md
 
 
+def test_convert_mermaid_cache_skips_rerender(home, monkeypatch):
+    calls = []
+    monkeypatch.setattr(vp, "_http", lambda *a, **k: calls.append(1) or (200, [], b"png"))
+    monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/d.png")
+    md = "```mermaid\ngraph TD; A-->B\n```"
+    cache = {}
+    vp.convert_mermaid(md, {"access_token": "a"}, cache=cache)
+    assert len(calls) == 1 and any(k.startswith("mermaid:") for k in cache)
+    new_md, n = vp.convert_mermaid(md, {"access_token": "a"}, cache=cache)
+    assert len(calls) == 1  # 캐시 히트 — kroki 재호출 없음
+    assert "velcdn.com" in new_md
+
+
+def test_http_network_error_raises_velog_error(home, monkeypatch):
+    def boom(*a, **k):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(vp.urllib.request, "urlopen", boom)
+    with pytest.raises(vp.VelogError):
+        vp._http("https://v3.velog.io/graphql", method="POST", data=b"{}")
+
+
 def test_cmd_update_flow(home, tmp_path, monkeypatch):
     vp.save_tokens({"access_token": "a", "refresh_token": "r"})
     md = tmp_path / "p.md"

@@ -11,6 +11,7 @@
 """
 import argparse
 import base64
+import hashlib
 import json
 import mimetypes
 import re
@@ -42,6 +43,9 @@ def _http(url, method="GET", headers=None, data=None):
             return resp.status, list(resp.headers.items()), resp.read()
     except urllib.error.HTTPError as e:
         return e.code, list(e.headers.items()), e.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        # 타임아웃이 트레이스백으로 터졌던 실사고 재발 방지 — 우아한 실패로 강등
+        raise VelogError(f"네트워크 오류({type(e).__name__}) — 잠시 후 다시 시도하세요")
 
 
 def load_tokens():
@@ -306,15 +310,20 @@ def first_image_url(md_text):
 MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
 
 
-def convert_mermaid(md_text, tokens):
+def convert_mermaid(md_text, tokens, cache=None):
     """velog는 mermaid를 렌더링하지 못한다 — kroki로 PNG를 만들어 CDN에 올리고 치환.
 
-    변환 실패 시 코드블록을 그대로 두고 경고만 남긴다(글이 깨지지 않게)."""
+    변환 실패 시 코드블록을 그대로 두고 경고만 남긴다(글이 깨지지 않게).
+    cache에 코드 해시별 CDN URL을 저장해 update 때 재변환·재업로드를 피한다."""
     count = 0
+    cache = cache if cache is not None else {}
 
     def repl(m):
         nonlocal count
         code = m.group(1).strip()
+        key = "mermaid:" + hashlib.sha1(code.encode()).hexdigest()[:12]
+        if key in cache:
+            return f"![다이어그램]({cache[key]})"
         try:
             enc = base64.urlsafe_b64encode(zlib.compress(code.encode(), 9)).decode()
             status, _, img = _http(KROKI_URL + enc, headers=dict(UA))
@@ -330,6 +339,7 @@ def convert_mermaid(md_text, tokens):
         except Exception as e:  # noqa: BLE001 — 변환은 best-effort
             print(f"경고: mermaid 변환 실패({e}) — 코드블록 유지", file=sys.stderr)
             return m.group(0)
+        cache[key] = url
         count += 1
         return f"![다이어그램]({url})"
 
@@ -363,7 +373,7 @@ def cmd_publish(md_path, mode="private", series_id=None, keep_mermaid=False):
     try:
         new_body, n = rewrite_images(body, path.parent, tokens, cache=image_cache)
         if not keep_mermaid:
-            new_body, n_mmd = convert_mermaid(new_body, tokens)
+            new_body, n_mmd = convert_mermaid(new_body, tokens, cache=image_cache)
             if n_mmd:
                 print(f"mermaid 다이어그램 {n_mmd}개를 이미지로 변환했습니다")
     except VelogError as e:
@@ -455,7 +465,7 @@ def cmd_update(md_path, keep_mermaid=False, series_id=None):
     try:
         new_body, n = rewrite_images(body, path.parent, tokens, cache=image_cache)
         if not keep_mermaid:
-            new_body, _ = convert_mermaid(new_body, tokens)
+            new_body, _ = convert_mermaid(new_body, tokens, cache=image_cache)
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 3

@@ -200,12 +200,44 @@ h1 b{color:#7aa2f7}
 `background:#f7f8fa; background-image:radial-gradient(#c9d3e6 1.5px, transparent 1.5px);
 background-size:26px 26px;` 위에 어두운 타이포(#1b2027)와 컬러 포인트 한 가지. 라이트한 인상.
 
+### 스타일 4: `mesh` — CSS 제너러티브 그라데이션 (완전 오프라인)
+
+여러 radial-gradient를 겹친 메시 배경 + SVG 노이즈 그레인. **글마다 다르고, 같은 글은 항상 같다**
+(결정적): 제목 SHA1 해시로 그라데이션 좌표(`at x% y%`)와 팔레트 3색 선택을 변주한다.
+
+```css
+body{background:#0b0e14;background-image:
+  radial-gradient(at 82% 4%, rgba(122,162,247,.55) 0, transparent 52%),
+  radial-gradient(at 104% 68%, rgba(32,201,151,.38) 0, transparent 55%),
+  radial-gradient(at 30% 108%, rgba(187,154,247,.42) 0, transparent 52%)}
+/* 그레인: feTurbulence SVG를 data URI 배경으로, mix-blend-mode:overlay, opacity .5 */
+```
+스크림(`rgba(11,14,20,.82)→투명`)과 타이포 레이어는 gradient 스타일과 동일.
+
+### 스타일 5: `ai-bg` — 무키(無key) AI 생성 배경 (pollinations.ai)
+
+"AI 느낌"의 배경을 **API 키·가입·비용 없이** 생성해 뒤에 깐다:
+
+```
+https://image.pollinations.ai/prompt/<URL인코딩 프롬프트>?width=1200&height=630&nologo=true&seed=<시드>
+```
+
+- **프롬프트 규칙**: `abstract` + 무드 키워드 2~3개(주제·팔레트 반영, 예: "flowing aurora, deep navy
+  mint purple, soft glow ribbons") + **`minimal, no text, no letters` 필수** — 구체 사물·글자 금지.
+- **시드 = 제목 SHA1 해시 % 100000** → 같은 글은 재생성해도 같은 배경(결정적).
+- 받은 이미지는 `retro/assets/auto/<ts>-thumb-bg.jpg`로 저장 후, 좌측 진한 스크림
+  (`rgba(11,14,20,.92) 0% → .15 100%`)과 타이포를 얹는다. 텍스트에 `text-shadow` 권장.
+- **폴백**: 요청 실패·오프라인이면 mesh로 대체. 외부 서비스라 언제든 정책이 바뀔 수 있음을 인지.
+
+### 다양성 원칙 — "통일된 다양성"
+
+- **한 시리즈 = 한 스타일**(레이아웃·타이포 고정 = 브랜드). 다양함은 **배경 시드·팔레트 변주**로.
+- 스타일을 글마다 바꾸면 목록이 산만해진다 — 바꾸려면 시리즈 단위로.
+
 ### 공통 규칙
 
 - 크기 항상 **1200×630**. 제목이 28자를 넘으면 폰트를 48px로 줄이고, 40자 초과 시 핵심 구절만 발췌.
 - 시리즈 칩·태그는 config 값에서 자동으로. 날짜는 넣지 않는다(목록에 이미 표시됨).
-- 진짜 일러스트 배경을 원하면(선택): 외부 이미지 생성 API 키를 setup 방식으로 받아 배경만 생성하고
-  타이포는 위 템플릿으로 얹는 하이브리드가 가능하다 — 단, 스타일 일관성이 깨지기 쉬워 기본은 비추천.
 
 ## 슬롯을 채울 수 없을 때
 

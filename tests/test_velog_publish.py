@@ -86,8 +86,35 @@ def test_upload_http_error_raises(home, tmp_path, monkeypatch):
     img = tmp_path / "x.png"
     img.write_bytes(b"img")
     monkeypatch.setattr(vp, "_http", lambda *a, **k: (500, [], b"boom"))
+    monkeypatch.setattr(vp.time, "sleep", lambda s: None)
     with pytest.raises(vp.VelogError):
         vp.upload_image(img, {"access_token": "a"})
+
+
+def test_upload_retries_on_5xx_then_succeeds(home, tmp_path, monkeypatch):
+    img = tmp_path / "x.png"
+    img.write_bytes(b"img")
+    responses = iter([
+        (504, [], b"gw timeout"),
+        (500, [], b"boom"),
+        (200, [], json.dumps({"path": "https://velog.velcdn.com/u/x.png"}).encode()),
+    ])
+    slept = []
+    monkeypatch.setattr(vp, "_http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(vp.time, "sleep", lambda s: slept.append(s))
+    assert vp.upload_image(img, {"access_token": "a"}) == "https://velog.velcdn.com/u/x.png"
+    assert len(slept) == 2  # 5xx 두 번 → 백오프 두 번 → 3번째 성공
+
+
+def test_upload_does_not_retry_on_auth_error(home, tmp_path, monkeypatch):
+    img = tmp_path / "x.png"
+    img.write_bytes(b"img")
+    calls = []
+    monkeypatch.setattr(vp, "_http", lambda *a, **k: calls.append(1) or (401, [], b"no"))
+    monkeypatch.setattr(vp.time, "sleep", lambda s: None)
+    with pytest.raises(vp.VelogError):
+        vp.upload_image(img, {"access_token": "a"})
+    assert len(calls) == 1  # 인증 오류는 재시도하지 않는다
 
 
 MD = """---

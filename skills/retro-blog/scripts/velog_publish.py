@@ -17,6 +17,7 @@ import mimetypes
 import re
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -96,14 +97,22 @@ def _multipart(fields, file_field, file_path):
 
 def upload_image(path, tokens):
     body, content_type = _multipart({"type": "post"}, "image", path)
-    status, resp_headers, resp_body = _http(
-        UPLOAD_URL, method="POST",
-        headers={"Content-Type": content_type, "Cookie": cookie_header(tokens)},
-        data=body,
-    )
-    rotate_tokens(resp_headers, tokens)
-    if status in (401, 403):
-        raise VelogError(f"인증 실패({status}) — 토큰 만료 가능성. setup을 다시 실행하세요.")
+    # velog 업로드 엔드포인트가 간헐적으로 5xx를 반환한다(실사고: 500/504) — 백오프 재시도
+    for attempt, backoff in enumerate((2, 5, None)):
+        status, resp_headers, resp_body = _http(
+            UPLOAD_URL, method="POST",
+            headers={"Content-Type": content_type, "Cookie": cookie_header(tokens)},
+            data=body,
+        )
+        rotate_tokens(resp_headers, tokens)
+        if status in (401, 403):
+            raise VelogError(f"인증 실패({status}) — 토큰 만료 가능성. setup을 다시 실행하세요.")
+        if status < 500:
+            break
+        if backoff is None:
+            break
+        print(f"경고: 업로드 {status} — {backoff}초 후 재시도({attempt + 2}/3): {path.name}", file=sys.stderr)
+        time.sleep(backoff)
     if status != 200:
         raise VelogError(f"이미지 업로드 실패({status}): {path.name}")
     try:

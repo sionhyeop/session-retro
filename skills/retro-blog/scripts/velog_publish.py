@@ -425,8 +425,8 @@ def cmd_visibility(md_path, public):
     return 0
 
 
-def cmd_update(md_path, keep_mermaid=False):
-    """발행된 글을 로컬 MD의 최신 내용으로 갱신한다(공개 상태·시리즈 유지)."""
+def cmd_update(md_path, keep_mermaid=False, series_id=None):
+    """발행된 글을 로컬 MD의 최신 내용으로 갱신한다(공개 상태 유지, 시리즈는 지정 시 변경)."""
     path = Path(md_path)
     sidecar_file = _sidecar_path(path)
     if not path.is_file():
@@ -454,15 +454,16 @@ def cmd_update(md_path, keep_mermaid=False):
         f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
     thumbnail = meta.get("thumbnail") or first_image_url(new_body) or sidecar.get("thumbnail")
     visibility = sidecar.get("visibility", "private")
+    effective_series = series_id or sidecar.get("series_id")
     try:
         edit_post(sidecar["id"], title, new_body, tags, thumbnail,
                   sidecar.get("url_slug", ""), tokens,
                   temp=(visibility == "draft"), private=(visibility == "private"),
-                  series_id=sidecar.get("series_id"))
+                  series_id=effective_series)
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 4
-    sidecar.update(title=title, tags=tags, thumbnail=thumbnail)
+    sidecar.update(title=title, tags=tags, thumbnail=thumbnail, series_id=effective_series)
     sidecar_file.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"글 업데이트 완료 ✅ (이미지 {n}개 처리, {visibility} 상태 유지)")
     print(f"- 글 주소: {_post_url(sidecar.get('username', ''), sidecar.get('url_slug', ''))}")
@@ -482,6 +483,7 @@ def main(argv=None):
     p.add_argument("--keep-mermaid", action="store_true")
     u = sub.add_parser("update")
     u.add_argument("md")
+    u.add_argument("--series-id", default=None)
     u.add_argument("--keep-mermaid", action="store_true")
     v = sub.add_parser("visibility")
     v.add_argument("md")
@@ -502,7 +504,7 @@ def main(argv=None):
         return cmd_publish(args.md, mode=mode, series_id=args.series_id,
                            keep_mermaid=args.keep_mermaid)
     if args.cmd == "update":
-        return cmd_update(args.md, keep_mermaid=args.keep_mermaid)
+        return cmd_update(args.md, keep_mermaid=args.keep_mermaid, series_id=args.series_id)
     if args.cmd == "visibility":
         if args.public == args.private:
             print("에러: --public 또는 --private 중 하나를 지정하세요", file=sys.stderr)

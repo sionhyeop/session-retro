@@ -328,6 +328,28 @@ def test_cmd_update_flow(home, tmp_path, monkeypatch):
     assert md.with_suffix(".published.md").is_file()
 
 
+def test_cmd_update_can_set_series(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD.replace("![스크린샷](assets/a.png)", ""), encoding="utf-8")
+    md.with_suffix(".velog.json").write_text(json.dumps({
+        "id": "p-1", "url_slug": "s", "username": "u", "title": "테스트 회고",
+        "tags": ["테스트"], "thumbnail": None, "series_id": None, "visibility": "private",
+    }), encoding="utf-8")
+    captured = {}
+
+    def fake_edit(post_id, title, body, tags, thumbnail, url_slug, tokens,
+                  temp=False, private=True, series_id=None):
+        captured["series_id"] = series_id
+        return {"id": post_id, "url_slug": url_slug}
+
+    monkeypatch.setattr(vp, "edit_post", fake_edit)
+    assert vp.cmd_update(str(md), series_id="s-77") == 0
+    assert captured["series_id"] == "s-77"
+    sidecar = json.loads(md.with_suffix(".velog.json").read_text(encoding="utf-8"))
+    assert sidecar["series_id"] == "s-77"  # 다음 update부터는 자동 유지
+
+
 def test_cmd_update_missing_sidecar_exit_5(home, tmp_path):
     vp.save_tokens({"access_token": "a", "refresh_token": "r"})
     md = tmp_path / "p.md"

@@ -126,8 +126,15 @@ def rewrite_images(md_text, md_dir, tokens):
 
 def cmd_setup():
     print("velog.io 로그인 → 개발자도구(F12) → Application → Cookies → https://velog.io 에서 값 복사")
-    access = input("access_token: ").strip()
-    refresh = input("refresh_token: ").strip()
+    try:
+        access = input("access_token: ").strip()
+        refresh = input("refresh_token: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        # Claude Code의 `!` 실행처럼 대화형 stdin이 없는 환경에서 실행된 경우
+        print("\n에러: 이 환경에서는 붙여넣기 입력을 받을 수 없습니다.", file=sys.stderr)
+        print("일반 터미널(WSL 창)을 열고 아래를 실행하세요:", file=sys.stderr)
+        print(f'  python3 "{Path(__file__).resolve()}" setup', file=sys.stderr)
+        return 2
     if not access or not refresh:
         print("에러: 두 토큰 모두 필요합니다", file=sys.stderr)
         return 2

@@ -157,7 +157,7 @@ def test_backlog_renders_with_copy_bridge(tmp_path):
     assert "pptx 개발기" in html and "훅 문구" in html
     assert 'data-cmd="' in html and "이어서" in html and "clipboard" in html  # 클릭→복사 브리지
     assert "회고 스펙을 만들어줘" in html  # planned 단계의 다음 액션 지시문
-    assert html.count('<div class="lane">') == 5  # 5단계 파이프라인
+    assert html.count('<div class="lane"') == 5  # 5단계 파이프라인
     assert html.count('<div class="flow-arrow">') == 4  # 레인 사이 흐름 화살표
     nxt = bm.next_suggestion([], [], backlog)
     assert nxt["kind"] == "backlog" and nxt["title"] == "pptx 개발기"

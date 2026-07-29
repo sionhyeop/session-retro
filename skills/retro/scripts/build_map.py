@@ -280,8 +280,11 @@ def render_html(episodes, days, assets, project_name, backlog=None):
     lane_html = []
     for i, s in enumerate(STAGES):
         dot, label = STAGE_LABEL[s]
+        n = len(lanes_content[s])
         cards = "".join(lanes_content[s]) or '<div class="empty">—</div>'
-        lane_html.append(f'<div class="lane"><h3>{dot} {label} <i>{len(lanes_content[s])}</i></h3>{cards}</div>')
+        grow = max(1, min(3, -(-n // 2)))  # 카드가 많은 레인은 폭을 넓혀 세로 쏠림 방지
+        lane_html.append(f'<div class="lane" style="flex-grow:{grow}"><h3>{dot} {label} <i>{n}</i></h3>'
+                         f'<div class="cards">{cards}</div></div>')
         if i < len(STAGES) - 1:
             lane_html.append('<div class="flow-arrow">→</div>')
     board = "".join(lane_html)
@@ -323,17 +326,22 @@ a {{ color:var(--accent); }}
 .node.uncovered .body {{ border-style:dashed; opacity:.85; }}
 .tag {{ display:inline-block; margin-top:6px; font-size:13px; border-radius:999px; padding:2px 12px; background:rgba(122,162,247,.12); }}
 .uncovered-tag {{ background:transparent; border:1px dashed var(--line); color:var(--dim); }}
-.board {{ display:flex; align-items:stretch; overflow-x:auto; padding:4px 0 12px; }}
-.lane {{ flex:1; min-width:185px; background:rgba(122,162,247,.04); border:1px solid var(--line);
+.board {{ display:flex; align-items:stretch; overflow-x:auto; padding:4px 0 12px;
+  width:min(1280px, calc(100vw - 48px)); margin-left:50%; transform:translateX(-50%); }}
+.lane {{ flex:1; min-width:150px; background:rgba(122,162,247,.04); border:1px solid var(--line);
   border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:10px; }}
 .lane h3 {{ font-size:14.5px; color:var(--dim); font-weight:600; }}
 .lane h3 i {{ font-style:normal; color:var(--accent); margin-left:4px; }}
+.lane .cards {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:9px;
+  align-content:start; flex:1; }}
 .lane .empty {{ color:var(--line); text-align:center; padding:18px 0; font-size:18px; }}
 .flow-arrow {{ display:flex; align-items:flex-start; padding-top:10px; font-size:26px;
   font-weight:700; color:var(--accent); padding-left:6px; padding-right:6px; flex-shrink:0; }}
-.kcard {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:11px 13px;
-  display:flex; flex-direction:column; gap:5px; font-size:14px; }}
-.kcard b {{ font-size:14.5px; line-height:1.4; }}
+.kcard {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px;
+  display:flex; flex-direction:column; gap:4px; font-size:13.5px; }}
+.kcard b {{ font-size:14px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; }}
+.kcard .dim {{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
 .kcard.stage-planned {{ border-style:dashed; }}
 .kcard.stage-spec {{ border-left:3px solid var(--c-spec); }}
 .kcard.stage-draft {{ border-left:3px solid var(--c-draft); }}

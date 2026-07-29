@@ -15,6 +15,19 @@ description: Claude Code 세션의 시행착오를 에피소드(주제 단위) �
 1. 구조가 없으면 생성:
    `mkdir -p retro/archive retro/assets/auto retro/assets/inbox retro/specs retro/out/blog retro/out/ppt retro/.timeline`
    (retro/가 생기면 이후 세션부터 백업 훅이 이 프로젝트에서 활성화된다.)
+   `retro/config.md`가 없으면 아래 템플릿으로 생성한다:
+
+   ```markdown
+   ---
+   default_visibility: private   # private | public | draft — public이어도 발행 전 한 번 더 확인
+   default_tags: [Claude Code, 회고]
+   series: ""                    # velog 시리즈명 (API 연동 전까지 메모)
+   audience: 팀원/멘토/블로그 독자
+   ---
+
+   ## 말투 메모
+   (원하는 문체 특징을 적어두면 retro-blog가 글 쓸 때 반영)
+   ```
 2. **마이그레이션**: 구버전 단일 `retro/spec.md`가 있으면 frontmatter의 updated·title로
    `retro/specs/<updated날짜>-<slug>.md`로 이동을 제안한다.
 3. **모드 판정**: `retro/specs/`가 비어 있는데 프로젝트에 세션 기록(현재 보관분 + archive)이
@@ -126,7 +139,9 @@ retro/가 있는 프로젝트에서 브라우저 검증 스크린샷을 찍을 �
 `retro/assets/auto/<YYYY-MM-DDTHH-MM-SS>-<설명>.png` 사본을 남긴다.
 (프로젝트 CLAUDE.md에 이 관례를 한 줄 적어두면 다른 세션에서도 유지된다.)
 
-## 9. 완료 보고
+## 9. 콘텐츠 맵 갱신 + 완료 보고
 
-생성/갱신된 스펙과 overview를 요약하고, "이제 /retro-blog(velog 글) 또는
-/retro-ppt(발표 덱)로 내보낼 수 있어요"를 안내한다.
+1. `python3 "<skill-dir>/scripts/build_map.py"` 실행 → `retro/map.html` 재생성
+   (에피소드 상태 색칠 + 이미지 부족 배지 + 다음 작성 추천).
+2. 생성/갱신된 스펙과 overview를 요약하고, 맵 경로와 함께 "이제 /retro-blog(velog 글)
+   또는 /retro-ppt(발표 덱)로 내보낼 수 있어요"를 안내한다.

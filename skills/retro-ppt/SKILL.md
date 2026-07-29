@@ -28,3 +28,4 @@ description: retro/spec.md 회고 스펙을 발표용 단일 파일 HTML 슬라�
 4. 검증: 가능하면 브라우저(chrome-devtools MCP)로 열어 표지·중간·끝 슬라이드와
    키보드 내비를 확인한다. 불가하면 파일을 열어 SLIDES 마커 사이 구조를 육안 점검.
 5. 사용자 안내: 파일 경로, 조작법(←/→ 이동, Ctrl+P → PDF 저장), 슬라이드 수.
+6. 콘텐츠 맵 재생성: `python3 "$HOME/.claude/skills/retro/scripts/build_map.py"`

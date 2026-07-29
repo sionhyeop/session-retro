@@ -20,7 +20,7 @@ bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은
 발표자료로도 만들어줘                ← /retro-ppt : HTML 덱 생성
 ```
 
-③ 결과물 위치: `retro/out/blog/*.md` (velog에 **비공개로 발행**됨 — "공개로 바꿔줘" 하면 공개 전환), `retro/out/ppt/*.html` (더블클릭 → 발표, Ctrl+P → PDF)
+③ 결과물 위치: `retro/out/blog/*.md` (velog에 **비공개로 발행**됨 — "공개로 바꿔줘" 하면 공개 전환), `retro/out/ppt/*.html` (더블클릭 → 발표, Ctrl+P → PDF), `retro/map.html` (**콘텐츠 맵** — 에피소드별 진행 상태 색칠, 이미지 부족 경고, 다음 작성 추천. 스킬 실행 때마다 자동 갱신)
 
 `/retro`를 한 번 실행해 `retro/` 폴더가 생긴 프로젝트는, 이후 세션 종료·컨텍스트 압축 시
 트랜스크립트가 `retro/archive/`에 **자동 백업**됩니다 (opt-in 방식 — 다른 프로젝트는 건드리지 않음).

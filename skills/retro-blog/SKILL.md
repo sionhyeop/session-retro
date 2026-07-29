@@ -14,7 +14,10 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
 
 ## 절차
 
-0. **스펙 선택**: `ls -t retro/specs/*.md` — 여러 개면 제목·갱신일 목록을 보여주고 고르게 한다
+0. **설정 확인**: `retro/config.md`가 있으면 Read — `default_tags`·`audience`·"말투 메모"를
+   글에 반영하고, `default_visibility`를 업로드 모드 기본값으로 쓴다(public이면 발행 직전
+   한 번 더 확인 — 공개 명시 원칙 유지). 없으면 retro 스킬 초기화를 먼저 안내.
+0-1. **스펙 선택**: `ls -t retro/specs/*.md` — 여러 개면 제목·갱신일 목록을 보여주고 고르게 한다
    (기본: 최근 갱신). 1개뿐이거나 사용자가 이미 지정했으면 바로 진행.
    부작 스펙(`-part1`, `-part2`)은 부별로 각각 글을 만들고 velog 시리즈명을 제안한다
    (시리즈 등록 자체는 velog에서 직접 — API 연동은 v2).
@@ -28,6 +31,10 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
    - 사용자가 처음부터 공개를 요청한 경우에만 `--public`, 임시저장을 원하면 `--draft`.
 4. 성공(종료 코드 0): 출력된 글 주소를 전달하고, 비공개 상태이며 "공개로 바꿔줘"라고 하면
    전환해줄 수 있음을 안내한다. 발행 기록은 `<파일>.velog.json` 사이드카에 저장된다.
+   마지막으로 콘텐츠 맵을 재생성한다:
+   `python3 "$HOME/.claude/skills/retro/scripts/build_map.py"`
+   - 글에 이미지가 0장이면 업로드 전에 경고한다: "이미지가 없습니다 — retro/assets/inbox/에
+     넣어주시면 배치할게요. 그대로 올릴까요?"
 
 ## 공개/비공개 전환
 

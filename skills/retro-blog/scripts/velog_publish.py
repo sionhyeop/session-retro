@@ -111,20 +111,27 @@ def upload_image(path, tokens):
 IMG_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
 
 
-def rewrite_images(md_text, md_dir, tokens):
-    """MD의 로컬 이미지를 업로드하고 CDN URL로 치환. (새 MD, 업로드 수) 반환."""
+def rewrite_images(md_text, md_dir, tokens, cache=None):
+    """MD의 로컬 이미지를 업로드하고 CDN URL로 치환. (새 MD, 업로드 수) 반환.
+
+    cache: {로컬경로: CDN URL} — 이미 올린 이미지는 재업로드하지 않고 캐시를 갱신한다
+    (update가 매번 전체 재업로드하다 서버 오류를 맞은 실사고의 재발 방지)."""
     count = 0
+    cache = cache if cache is not None else {}
 
     def repl(m):
         nonlocal count
         alt, src = m.group(1), m.group(2)
         if src.startswith(("http://", "https://", "data:")):
             return m.group(0)
+        if src in cache:
+            return f"![{alt}]({cache[src]})"
         local = (md_dir / src).resolve()
         if not local.is_file():
             print(f"경고: 이미지 없음, 건너뜀 — {src}", file=sys.stderr)
             return m.group(0)
         url = upload_image(local, tokens)
+        cache[src] = url
         count += 1
         print(f"업로드됨: {src} -> {url}")
         return f"![{alt}]({url})"
@@ -352,8 +359,9 @@ def cmd_publish(md_path, mode="private", series_id=None, keep_mermaid=False):
     if not title:
         print("에러: frontmatter에 title이 필요합니다.", file=sys.stderr)
         return 5
+    image_cache = {}
     try:
-        new_body, n = rewrite_images(body, path.parent, tokens)
+        new_body, n = rewrite_images(body, path.parent, tokens, cache=image_cache)
         if not keep_mermaid:
             new_body, n_mmd = convert_mermaid(new_body, tokens)
             if n_mmd:
@@ -376,7 +384,7 @@ def cmd_publish(md_path, mode="private", series_id=None, keep_mermaid=False):
     _sidecar_path(path).write_text(json.dumps({
         "id": result["id"], "url_slug": result.get("url_slug", ""), "username": username,
         "title": title, "tags": meta.get("tags", []), "thumbnail": thumbnail,
-        "series_id": series_id, "visibility": mode,
+        "series_id": series_id, "visibility": mode, "images": image_cache,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     if mode == "draft":
         print("임시저장(초안) 업로드 완료 ✅")
@@ -443,8 +451,9 @@ def cmd_update(md_path, keep_mermaid=False, series_id=None):
     meta, body = parse_frontmatter(path.read_text(encoding="utf-8"))
     title = meta.get("title") or sidecar.get("title", "")
     tags = meta.get("tags") or sidecar.get("tags", [])
+    image_cache = sidecar.get("images", {})
     try:
-        new_body, n = rewrite_images(body, path.parent, tokens)
+        new_body, n = rewrite_images(body, path.parent, tokens, cache=image_cache)
         if not keep_mermaid:
             new_body, _ = convert_mermaid(new_body, tokens)
     except VelogError as e:
@@ -463,7 +472,8 @@ def cmd_update(md_path, keep_mermaid=False, series_id=None):
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 4
-    sidecar.update(title=title, tags=tags, thumbnail=thumbnail, series_id=effective_series)
+    sidecar.update(title=title, tags=tags, thumbnail=thumbnail,
+                   series_id=effective_series, images=image_cache)
     sidecar_file.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"글 업데이트 완료 ✅ (이미지 {n}개 처리, {visibility} 상태 유지)")
     print(f"- 글 주소: {_post_url(sidecar.get('username', ''), sidecar.get('url_slug', ''))}")

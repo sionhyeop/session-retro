@@ -63,6 +63,25 @@ def test_rewrite_images_uploads_local_and_skips_remote(home, tmp_path, monkeypat
     assert "https://example.com/b.png" in new_md
 
 
+def test_rewrite_images_uses_cache_and_uploads_only_new(home, tmp_path, monkeypatch):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "old.png").write_bytes(b"img")
+    (tmp_path / "assets" / "new.png").write_bytes(b"img")
+    uploaded = []
+
+    def fake_upload(p, t):
+        uploaded.append(p.name)
+        return f"https://velog.velcdn.com/u/{p.name}"
+
+    monkeypatch.setattr(vp, "upload_image", fake_upload)
+    cache = {"assets/old.png": "https://velog.velcdn.com/u/cached-old.png"}
+    md = "![a](assets/old.png)\n![b](assets/new.png)"
+    new_md, n = vp.rewrite_images(md, tmp_path, {"access_token": "a"}, cache=cache)
+    assert uploaded == ["new.png"]  # 캐시된 이미지는 재업로드하지 않는다
+    assert "cached-old.png" in new_md and "u/new.png" in new_md
+    assert cache["assets/new.png"] == "https://velog.velcdn.com/u/new.png"  # 캐시 갱신
+
+
 def test_upload_http_error_raises(home, tmp_path, monkeypatch):
     img = tmp_path / "x.png"
     img.write_bytes(b"img")

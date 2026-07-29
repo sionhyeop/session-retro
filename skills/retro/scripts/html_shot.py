@@ -54,7 +54,7 @@ def shot(html_path, out_png, width=1280, height=800, browser=None):
     url = f"file:///{_win_path(html_path)}" if is_windows_exe else html_path.as_uri()
     out_arg = _win_path(out_png) if is_windows_exe else str(out_png)
     result = subprocess.run(
-        [browser, "--headless=new", "--disable-gpu",
+        [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars",
          f"--window-size={width},{height}", f"--screenshot={out_arg}", url],
         capture_output=True, text=True, timeout=90,
     )

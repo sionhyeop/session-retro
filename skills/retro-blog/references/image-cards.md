@@ -133,25 +133,62 @@ h1{font-size:30px;margin:0 0 22px}
 저장: `retro/assets/auto/<ts>-title-card.png` → frontmatter `thumbnail:`에 상대 경로로 지정
 (발행 스크립트가 업로드해 CDN URL로 바꿔준다). 본문에는 넣지 않는다(커버 전용).
 
-### 스타일 1: `gradient` (기본) — 다크 그래디언트 + 큰 타이포
+### 후킹 카피 규칙 (모든 스타일 공통)
+
+카드에는 제목 전문이 아니라 **후킹 카피**를 얹는다: 15자 내외의 강한 헤드(핵심 구절에 컬러
+악센트 `<b>`) + 서브 한 줄(제목/부제 요약). 예: 헤드 "삽질이 곧 **회고가 된다**",
+서브 "Claude Code 세션을 velog 글과 발표 덱으로".
+
+### 주제 아이콘 소싱 (1회 캐시, 이후 오프라인)
+
+글 주제의 기술 로고 SVG를 Simple Icons CDN에서 받아 `retro/assets/icons/`에 캐시한다:
+`curl -sL "https://cdn.simpleicons.org/<slug>/<hex색상>" -o retro/assets/icons/<slug>-color.svg`
+(slug 예: velog, claude, anthropic, react, python… / 브랜드 컬러 예: velog=20C997, claude=D97757)
+받은 파일이 `<svg`로 시작하는지 확인하고, 없는 slug이거나 오프라인이면 터미널 `>_`,
+괄호 `{ }` 같은 글리프를 인라인 SVG/텍스트로 직접 그려 대체한다.
+
+### 스타일 1: `gradient` (기본) — 아이콘 백드롭 + 스크림 + 후킹 카피 (3층 구조)
 
 ```html
 <!doctype html><html><head><meta charset="utf-8"><style>
-body{margin:0;background:linear-gradient(135deg,#111418 30%,#1b2340 70%,#2a3555);
-  min-height:100vh;display:flex;align-items:center;
+*{margin:0;box-sizing:border-box}
+body{background:#111418;min-height:100vh;overflow:hidden;position:relative;
   font-family:-apple-system,"Segoe UI","Pretendard","Malgun Gothic",sans-serif}
-.wrap{padding:70px 80px;width:100%}
-.series{display:inline-block;color:#7aa2f7;border:1px solid #3d59a1;border-radius:999px;
-  padding:6px 18px;font-size:19px;margin-bottom:26px}
-h1{color:#e8eaed;font-size:58px;line-height:1.3;margin:0 0 30px;word-break:keep-all;max-width:1000px}
-.tags{color:#9aa0a6;font-size:21px}
-.tags b{color:#7aa2f7;margin-right:14px}
-</style></head><body><div class="wrap">
-<span class="series">개발 회고</span>
-<h1>제목이 들어갈 자리 — 두 줄까지 자연스럽게</h1>
-<p class="tags"><b>#ClaudeCode</b><b>#회고</b><b>#자동화</b></p>
-</div></body></html>
+/* 1층: 주제 아이콘 백드롭 — 우측에 크게, 일부는 프레임 밖으로 크롭, 회전 변화 */
+.backdrop img{position:absolute}
+.i1{right:-70px;top:30px;width:400px;opacity:.28;transform:rotate(-12deg)}
+.i2{right:330px;bottom:-80px;width:310px;opacity:.22;transform:rotate(14deg)}
+.i3{right:200px;top:60px;width:140px;opacity:.15;transform:rotate(-6deg)}
+/* 2층: 스크림 — 좌측 텍스트 존은 사실상 단색, 우측으로 갈수록 투명 */
+.scrim{position:absolute;inset:0;
+  background:linear-gradient(90deg,#111418 0%,#111418 44%,rgba(17,20,24,.55) 76%,rgba(17,20,24,.22) 100%)}
+/* 3층: 후킹 카피 */
+.text{position:absolute;inset:0;padding:66px 80px;display:flex;flex-direction:column;justify-content:center}
+.series{align-self:flex-start;color:#7aa2f7;border:1px solid #3d59a1;border-radius:999px;
+  padding:6px 18px;font-size:19px;margin-bottom:24px}
+h1{color:#e8eaed;font-size:64px;line-height:1.25;word-break:keep-all;max-width:760px}
+h1 b{color:#7aa2f7}
+.sub{color:#9aa0a6;font-size:24px;margin-top:20px;max-width:700px;line-height:1.5}
+.tags{color:#6b7280;font-size:20px;margin-top:26px}
+.tags b{color:#7aa2f7;margin-right:14px;font-weight:600}
+</style></head><body>
+<div class="backdrop">
+  <img class="i1" src="../assets/icons/velog-color.svg">
+  <img class="i2" src="../assets/icons/claude-color.svg">
+  <img class="i3" src="../assets/icons/anthropic.svg">
+</div>
+<div class="scrim"></div>
+<div class="text">
+  <span class="series">개발 회고</span>
+  <h1>후킹 헤드 —<br><b>핵심 구절에 악센트</b></h1>
+  <p class="sub">서브 카피 한 줄 (제목·부제 요약)</p>
+  <p class="tags"><b>#태그1</b><b>#태그2</b><b>#태그3</b></p>
+</div>
+</body></html>
 ```
+
+- 아이콘은 글 주제에 맞는 것 2~3개(주제 기술 + velog)를 쓰고, 컬러 버전은 저투명도(.15~.3)로
+  깔아야 텍스트를 방해하지 않는다. 텍스트 존(좌측 44%)을 침범하는 배치는 금지.
 
 ### 스타일 2: `terminal` — 터미널 프레임 감성
 

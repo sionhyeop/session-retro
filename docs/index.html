@@ -86,8 +86,8 @@
     <div class="node"><b>Claude Code 세션</b><small>고민 · 시도 · 실패 · 해결 — 전부 JSONL로 기록 중</small></div>
     <div class="arrow">자동 — 세션 종료·압축 직전 훅이 복사 (retro/ 폴더가 있는 프로젝트만)</div>
     <div class="node auto"><b>retro/archive/*.jsonl</b><small>원본 영속화 — 30일 자동 삭제·컨텍스트 압축으로부터 보호</small></div>
-    <div class="arrow">"회고 정리해줘" 또는 /retro</div>
-    <div class="node hot"><b>retro/spec.md — 회고 스펙</b><small>단일 진실 소스. 사람이 직접 고쳐도 됨. 여기까지만 되면 출력은 언제든.</small></div>
+    <div class="arrow">"회고 정리해줘" 또는 /retro — 진행된 프로젝트면 소급 모드(세션×git 인벤토리 → 에피소드 분할)</div>
+    <div class="node hot"><b>retro/specs/&lt;에피소드&gt;.md + overview.md</b><small>블로그 1편 = 스펙 1개(주제 단위) · 개요는 온보딩 문서(결정·지뢰밭·목차). 단일 진실 소스 — 사람이 직접 고쳐도 됨.</small></div>
     <div class="arrow">원하는 형식으로, 몇 번이든</div>
     <div class="split">
       <div class="lane">
@@ -106,8 +106,8 @@
     <tr><td>세션 정리</td><td>"지금까지 한 거 회고로 정리해줘"</td><td>retro/spec.md 생성, 이미지 배치 제안</td></tr>
     <tr><td>중간 저장</td><td>"체크포인트 찍어줘"</td><td>spec.md에 이후 진행분 병합</td></tr>
     <tr><td>블로그 초안</td><td>"이거 velog에 올려줘"</td><td>글 작성 → 승인 → 임시저장 업로드</td></tr>
-    <tr><td>발표 자료</td><td>"발표자료로 만들어줘"</td><td>16:9 HTML 덱 생성 + 경로 안내</td></tr>
-    <tr><td>과거 세션 회고</td><td>"어제 세션으로 회고 만들어줘"</td><td>~/.claude/projects에서 소급 수집(30일 이내)</td></tr>
+    <tr><td>발표 자료</td><td>"발표자료로 만들어줘"</td><td>에피소드 발표 또는 프로젝트 전체 발표(개요 기반)</td></tr>
+    <tr><td><b>중간 도입</b></td><td>"이 프로젝트 지금까지 정리해줘"</td><td><b>소급 모드</b>: 세션×git 인벤토리 → 에피소드 분할 제안 → 블로그 여러 편 + 개요</td></tr>
   </table>
 
   <h2>처음 한 번만 하면 되는 것</h2>
@@ -162,8 +162,16 @@
     <p>쿠키를 다시 복사해서 <code>python3 skills/retro-blog/scripts/velog_publish.py setup</code>을 다시 실행하면 됩니다. (access_token 수명 ~1시간, refresh_token ~30일 — 평소엔 자동 회전됩니다.)</p></details>
   <details><summary>훅이 백업을 안 해요</summary>
     <p>① 그 프로젝트에 <code>retro/</code> 폴더가 있나요? (<code>/retro</code> 한 번 실행) ② 설치 후 새로 시작한 세션인가요? ③ <code>retro/archive/.hook.log</code>에 기록이 남습니다.</p></details>
+  <details><summary>이미 한참 진행된 프로젝트인데 지금 도입해도 되나요</summary>
+    <p>네 — 그 시나리오가 <b>소급 모드</b>입니다. 첫 <code>/retro</code>가 세션 기록(30일 보관)과 git 커밋을 교차한
+    인벤토리를 만들어 기능/문제 단위 에피소드를 나눠 제안하고, 승인한 것부터 스펙(블로그 1편감)과
+    온보딩용 개요(overview.md)를 만듭니다. 한 에피소드가 너무 길면 1부/2부 분할을 제안합니다.
+    세션이 이미 지워진 구간은 git 커밋 뼈대 + 짧은 인터뷰("이때 뭐가 힘들었어요?")로 보완합니다.</p></details>
   <details><summary>지난주에 한 세션도 회고로 만들 수 있나요</summary>
     <p>네. 원본이 <code>~/.claude/projects/</code>에 30일간 남아 있어 <code>/retro</code>가 소급 수집합니다. 그래서 보존 기간을 90일로 늘려두길 권장합니다.</p></details>
+  <details><summary>스킬을 부르는 걸 자꾸 잊어버려요</summary>
+    <p>세션 시작 넛지 훅이 대신 기억합니다 — 회고 재료가 쌓인 프로젝트에서는 Claude가 마무리 시점에 먼저
+    체크포인트를 제안하고, 회고가 활성화되지 않은 프로젝트에서 회고·블로그 얘기가 나오면 소급 모드를 안내합니다.</p></details>
   <details><summary>PPT를 .pptx 파일로 받고 싶어요</summary>
     <p>v1은 HTML 덱 + 인쇄 PDF까지입니다. HTML→pptx 자동 변환은 슬라이드가 이미지로 박제되는 한계가 있어, 편집 가능한 .pptx는 v2(PptxGenJS 경로)로 계획되어 있습니다.</p></details>
 

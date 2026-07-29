@@ -4,7 +4,8 @@ __pycache__/
 .pytest_cache/
 
 # 도그푸딩 산출물(회고 스펙·블로그·덱·원본 트랜스크립트)은 이 저장소에 커밋하지 않음
-retro/
+# 주의: 루트 앵커(/) 필수 — 앵커 없이 쓰면 skills/retro/ 까지 무시된다 (실제로 겪은 버그)
+/retro/
 
 # 토큰류는 어떤 형태로도 커밋 금지 (원래 ~/.config/velog-retro/에 저장됨)
 *tokens.json

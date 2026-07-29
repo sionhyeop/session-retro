@@ -157,10 +157,40 @@ def test_backlog_renders_with_copy_bridge(tmp_path):
     assert "pptx 개발기" in html and "훅 문구" in html
     assert 'data-cmd="' in html and "이어서" in html and "clipboard" in html  # 클릭→복사 브리지
     assert "회고 스펙을 만들어줘" in html  # planned 단계의 다음 액션 지시문
-    assert html.count('<div class="lane"') == 5  # 5단계 파이프라인
-    assert html.count('<div class="flow-arrow">') == 4  # 레인 사이 흐름 화살표
     nxt = bm.next_suggestion([], [], backlog)
     assert nxt["kind"] == "backlog" and nxt["title"] == "pptx 개발기"
+
+
+def test_parse_story(tmp_path):
+    retro = make_retro(tmp_path)
+    (retro / "story.md").write_text(
+        "# 프로젝트 연대기\n\n| 기간 | 챕터 | 요약 | 글 |\n|---|---|---|---|\n"
+        "| 07-01~07-05 | 초기 기능 구축 | 인증·DB 설계 | auth |\n"
+        "| 07-06~07-12 | 성능 개선 | 캐시 도입 |  |\n", encoding="utf-8")
+    chapters = bm.parse_story(retro)
+    assert len(chapters) == 2
+    assert chapters[0]["title"] == "초기 기능 구축" and chapters[0]["slug"] == "auth"
+    assert chapters[1]["slug"] == ""
+
+
+def test_story_chapter_view_and_grouped_publish_badge(tmp_path):
+    retro = make_retro(tmp_path)
+    ep = {"slug": "auth", "title": "인증 삽질기", "period": "", "dates": None, "updated": "",
+          "problems": [], "gaps": [], "images": 0, "stage": "published_private",
+          "deck": False, "url": "https://velog.io/@u/s"}
+    chapters = [
+        {"period": "07-01~05", "title": "초기 기능 구축", "summary": "인증·DB", "slug": "auth"},
+        {"period": "07-06~12", "title": "성능 개선", "summary": "캐시", "slug": ""},
+    ]
+    cov = bm.story_coverage(chapters, [ep])
+    assert (cov["total"], cov["covered"], cov["published"]) == (2, 1, 1)
+    html = bm.render_html([ep], [], bm.assets_summary(retro), "p", story=chapters)
+    assert "프로젝트 연대기" in html and "초기 기능 구축" in html
+    assert "발행 · 비공개" in html  # 비공개·공개가 '발행' 한 묶음으로 표기
+    assert "✍️ 미작성" in html and "성능 개선" in html
+    assert "파트의 회고 스펙을 만들어줘" in html  # 미작성 챕터 → 지시문 브리지 (따옴표는 속성 이스케이프됨)
+    nxt = bm.next_suggestion([ep], [], [], chapters)
+    assert nxt["kind"] == "chapter" and nxt["title"] == "성능 개선"  # 미작성 챕터가 최우선 글감
 
 
 def test_cli_writes_map(tmp_path):

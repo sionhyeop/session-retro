@@ -137,6 +137,43 @@ def parse_backlog(retro_dir):
     return items
 
 
+def parse_story(retro_dir):
+    """retro/story.md 프로젝트 연대기 — 시간순 챕터(초기 기능→중간→연구→개선…).
+
+    형식: | 기간 | 챕터 | 요약 | 글 | — '글'은 그 챕터를 다룬 에피소드 slug(비면 미작성)."""
+    story = Path(retro_dir) / "story.md"
+    if not story.is_file():
+        return []
+    chapters = []
+    for line in story.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line.startswith("|") or re.match(r"^\|[\s:|-]+\|$", line):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2 or cells[0] in ("기간", ""):
+            continue
+        chapters.append({"period": cells[0], "title": cells[1],
+                         "summary": cells[2] if len(cells) > 2 else "",
+                         "slug": cells[3] if len(cells) > 3 else ""})
+    return chapters
+
+
+def story_coverage(chapters, episodes):
+    by_slug = {e["slug"]: e for e in episodes if e.get("slug")}
+    total = len(chapters)
+    covered = published = 0
+    for ch in chapters:
+        ep = by_slug.get(ch["slug"])
+        ch["episode"] = ep
+        if ep:
+            covered += 1
+            if ep["stage"].startswith("published"):
+                published += 1
+    pct = lambda n: round(100 * n / total) if total else 0  # noqa: E731
+    return {"total": total, "covered": covered, "published": published,
+            "covered_pct": pct(covered), "published_pct": pct(published)}
+
+
 def collect_timeline(repo=".", session_paths=None):
     """활동일 타임라인 — 지도의 '영토'. 날짜별 {sessions, turns, errors, commits}."""
     paths = session_paths if session_paths is not None else default_session_files()
@@ -208,7 +245,11 @@ NEXT_ACTION = {
 }
 
 
-def next_suggestion(episodes, days=None, backlog=None):
+def next_suggestion(episodes, days=None, backlog=None, story=None):
+    for ch in story or []:
+        if not ch.get("episode"):
+            return {"kind": "chapter", "title": ch["title"],
+                    "detail": f"{ch['period']} — {ch['summary'] or '아직 글이 안 된 프로젝트 파트'}"}
     if backlog:
         b = backlog[0]
         return {"kind": "backlog", "title": b["title"],
@@ -228,15 +269,46 @@ def next_suggestion(episodes, days=None, backlog=None):
             "detail": f"현재 {STAGE_LABEL[ep['stage']][1]} — 다음 단계로 진행"}
 
 
-def render_html(episodes, days, assets, project_name, backlog=None):
+def _pub_state(stage):
+    """비공개·공개 발행을 '발행' 한 묶음으로 표기 (공개 여부는 부기)."""
+    if stage == "published_public":
+        return "🟢 발행 · 공개"
+    if stage == "published_private":
+        return "🟣 발행 · 비공개"
+    dot, label = STAGE_LABEL[stage]
+    return f"{dot} {label}"
+
+
+def render_html(episodes, days, assets, project_name, backlog=None, story=None):
     backlog = backlog or []
+    story = story or []
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    cov = coverage(days)
-    nxt = next_suggestion(episodes, days, backlog)
-    legend = " ".join(f"{d} {l}" for d, l in STAGE_LABEL.values())
+    cov = story_coverage(story, episodes) if story else coverage(days)
+    unit = "챕터" if story else "활동일"
+    nxt = next_suggestion(episodes, days, backlog, story)
+    legend = "⚪ 계획 · 🔵 스펙 · 🟡 초안 · 발행(🟣 비공개/🟢 공개)"
 
     def go_btn(cmd):
         return f'<button class="go" data-cmd="{html.escape(cmd, quote=True)}">▶ 이어서</button>'
+
+    # 프로젝트 연대기 — 시간 흐름 위에 '어느 파트가 글이 되었나'
+    chapters_html = []
+    for ch in story:
+        ep = ch.get("episode")
+        if ep:
+            link = f' <a href="{html.escape(ep["url"])}">글 보기</a>' if ep["url"] else ""
+            tag = (f'<span class="tag stage-{ep["stage"]}">{_pub_state(ep["stage"])}</span>{link} '
+                   + go_btn(NEXT_ACTION[ep["stage"]](ep["title"])))
+            cls = f"covered stage-{ep['stage']}"
+        else:
+            tag = ('<span class="tag uncovered-tag">✍️ 미작성</span> '
+                   + go_btn(f"'{ch['title']}' 파트의 회고 스펙을 만들어줘 ({ch['period']})"))
+            cls = "uncovered"
+        chapters_html.append(f"""
+  <div class="node {cls}">
+    <div class="when">{html.escape(ch['period'])}</div>
+    <div class="body"><b>{html.escape(ch['title'])}</b><span class="dim">{html.escape(ch['summary'])}</span>{tag}</div>
+  </div>""")
 
     # 타임라인 노드
     rows = []
@@ -261,37 +333,26 @@ def render_html(episodes, days, assets, project_name, backlog=None):
     if not rows:
         rows.append('<p class="dim">활동 기록이 없습니다 — 세션이 쌓이면 지도가 그려집니다.</p>')
 
-    # 흐름도 — 기획 → 스펙 → 초안 → 비공개 → 공개 파이프라인 위에 콘텐츠를 배치
-    def kcard(title, sub, stage, url="", extra=""):
-        link = f' <a href="{html.escape(url)}">글 보기</a>' if url else ""
-        return (f'<div class="kcard stage-{stage}"><b>{html.escape(title[:40])}</b>'
-                f'<span class="dim">{html.escape(sub)}</span>{extra}'
-                f'{go_btn(NEXT_ACTION[stage](title))}{link}</div>')
-
-    lanes_content = {s: [] for s in STAGES}
+    # 기획 백로그 카드 (미래 글감)
+    plan_cards = []
     for b in backlog:
         basis = f"근거: {b['basis']}" if b["basis"] else "기획"
-        lanes_content["planned"].append(kcard(b["title"], f"{b['hook']} · {basis}", "planned"))
-    for e in episodes:
-        gap = f'<span class="dim">⚠️ 이미지 부족 {len(e["gaps"])}곳</span>' if e["gaps"] else ""
-        sub = e["period"] or STAGE_LABEL[e["stage"]][1]
-        lanes_content[e["stage"]].append(kcard(e["title"], sub, e["stage"], url=e["url"], extra=gap))
+        plan_cards.append(f'<div class="kcard stage-planned"><b>{html.escape(b["title"][:40])}</b>'
+                          f'<span class="dim">{html.escape(b["hook"])} · {html.escape(basis)}</span>'
+                          f'{go_btn(NEXT_ACTION["planned"](b["title"]))}</div>')
 
-    lane_html = []
-    for i, s in enumerate(STAGES):
-        dot, label = STAGE_LABEL[s]
-        n = len(lanes_content[s])
-        cards = "".join(lanes_content[s]) or '<div class="empty">—</div>'
-        grow = max(1, min(3, -(-n // 2)))  # 카드가 많은 레인은 폭을 넓혀 세로 쏠림 방지
-        lane_html.append(f'<div class="lane" style="flex-grow:{grow}"><h3>{dot} {label} <i>{n}</i></h3>'
-                         f'<div class="cards">{cards}</div></div>')
-        if i < len(STAGES) - 1:
-            lane_html.append('<div class="flow-arrow">→</div>')
-    board = "".join(lane_html)
+    # 발행물(에피소드) 요약 칩 — 비공개·공개는 '발행' 한 묶음으로
+    chips = []
+    for e in episodes:
+        gap = f" · ⚠️{len(e['gaps'])}" if e["gaps"] else ""
+        link = f' <a href="{html.escape(e["url"])}">글</a>' if e["url"] else ""
+        chips.append(f'<span class="chip stage-{e["stage"]}">{_pub_state(e["stage"])}{gap} — '
+                     f'{html.escape(e["title"][:30])}{link} {go_btn(NEXT_ACTION[e["stage"]](e["title"]))}</span>')
 
     nxt_html = ""
     if nxt:
-        icon = {"backlog": "✍️ 다음 글감(기획)", "uncovered": "✍️ 다음 글감(미작성 구간)"}.get(nxt["kind"], "▶ 다음 단계")
+        icon = {"chapter": "✍️ 다음 글감(미작성 파트)", "backlog": "✍️ 다음 글감(기획)",
+                "uncovered": "✍️ 다음 글감(미작성 구간)"}.get(nxt["kind"], "▶ 다음 단계")
         nxt_html = f'<p class="next"><b>{icon}:</b> {html.escape(nxt["title"])} <span class="dim">— {html.escape(nxt["detail"])}</span></p>'
 
     return f"""<!doctype html>
@@ -316,7 +377,7 @@ h1 {{ font-size:32px; }} h2 {{ font-size:20px; margin:30px 0 12px; color:var(--a
 a {{ color:var(--accent); }}
 .flow {{ position:relative; margin-top:8px; padding-left:8px; }}
 .node {{ display:flex; gap:16px; padding:10px 0 10px 8px; border-left:3px solid var(--line); }}
-.node .when {{ width:52px; color:var(--dim); font-size:14px; padding-top:2px; flex-shrink:0; }}
+.node .when {{ width:92px; color:var(--dim); font-size:13.5px; padding-top:2px; flex-shrink:0; }}
 .node .body {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; flex:1; }}
 .node .body b {{ font-size:15px; }}
 .node.covered.stage-spec {{ border-left-color:var(--c-spec); }}
@@ -326,17 +387,7 @@ a {{ color:var(--accent); }}
 .node.uncovered .body {{ border-style:dashed; opacity:.85; }}
 .tag {{ display:inline-block; margin-top:6px; font-size:13px; border-radius:999px; padding:2px 12px; background:rgba(122,162,247,.12); }}
 .uncovered-tag {{ background:transparent; border:1px dashed var(--line); color:var(--dim); }}
-.board {{ display:flex; align-items:stretch; overflow-x:auto; padding:4px 0 12px;
-  width:min(1280px, calc(100vw - 48px)); margin-left:50%; transform:translateX(-50%); }}
-.lane {{ flex:1; min-width:150px; background:rgba(122,162,247,.04); border:1px solid var(--line);
-  border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:10px; }}
-.lane h3 {{ font-size:14.5px; color:var(--dim); font-weight:600; }}
-.lane h3 i {{ font-style:normal; color:var(--accent); margin-left:4px; }}
-.lane .cards {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:9px;
-  align-content:start; flex:1; }}
-.lane .empty {{ color:var(--line); text-align:center; padding:18px 0; font-size:18px; }}
-.flow-arrow {{ display:flex; align-items:flex-start; padding-top:10px; font-size:26px;
-  font-weight:700; color:var(--accent); padding-left:6px; padding-right:6px; flex-shrink:0; }}
+.plan-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:11px; }}
 .kcard {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px;
   display:flex; flex-direction:column; gap:4px; font-size:13.5px; }}
 .kcard b {{ font-size:14px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2;
@@ -357,18 +408,19 @@ a {{ color:var(--accent); }}
 <h1>콘텐츠 맵</h1>
 <p class="dim">{html.escape(project_name)} · 생성 {now} · 범례: {legend} · <b>▶ 이어서</b>를 누르면 다음 작업 지시문이 복사됩니다 — Claude Code에 붙여넣으세요</p>
 <div class="stats">
-  <div><b>{cov['total']}</b><span>활동일</span></div>
-  <div><b>{cov['covered_pct']}%</b><span>에피소드로 커버</span></div>
+  <div><b>{cov['total']}</b><span>{unit}</span></div>
+  <div><b>{cov['covered_pct']}%</b><span>글이 된 {unit}</span></div>
   <div><b>{cov['published_pct']}%</b><span>발행됨</span></div>
   <div><b>{len(backlog)}</b><span>기획 백로그</span></div>
 </div>
 {nxt_html}
-<h2>콘텐츠 흐름도 — 기획에서 공개까지</h2>
-<p class="dim" style="margin-bottom:8px">콘텐츠가 왼쪽에서 오른쪽으로 흘러갑니다. 기획 레인이 비면 "콘텐츠 기획해줘"로 채우세요 (retro/plan.md).</p>
-<div class="board">{board}</div>
-<h2>활동 기록 — 무엇을 썼고, 무엇이 비었나</h2>
-<div class="flow">{''.join(rows)}
-</div>
+<h2>프로젝트 연대기 — 흐름 속에서 무엇이 글이 되었나</h2>
+{f'<div class="flow">{"".join(chapters_html)}</div>' if story else
+ f'<p class="dim" style="margin-bottom:8px">아직 연대기가 없습니다 — "연대기 정리해줘"라고 하면 프로젝트 흐름(초기 기능→중간→개선…)을 챕터로 정리해 이 지도의 축을 만듭니다 (retro/story.md). 그 전까지는 활동일 기준으로 보여드립니다.</p><div class="flow">{"".join(rows)}</div>'}
+<h2>앞으로 쓸 것들 — 기획 백로그</h2>
+<div class="plan-grid">{''.join(plan_cards) or '<span class="dim">비어 있음 — "콘텐츠 기획해줘"로 채우세요 (retro/plan.md)</span>'}</div>
+<h2>발행물</h2>
+<div class="chips">{''.join(chips) or '<span class="dim">아직 없음 — /retro로 시작</span>'}</div>
 <p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신됩니다.</p>
 <div id="toast">복사됨 ✓ Claude Code에 붙여넣으세요</div>
 <script>
@@ -426,13 +478,16 @@ def main(argv=None):
         return 1
     episodes = collect(retro)
     backlog = parse_backlog(retro)
+    story = parse_story(retro)
     days = assign_days(collect_timeline(repo=args.repo), episodes)
-    text = render_html(episodes, days, assets_summary(retro), retro.resolve().parent.name, backlog=backlog)
+    text = render_html(episodes, days, assets_summary(retro), retro.resolve().parent.name,
+                       backlog=backlog, story=story)
     out = Path(args.out) if args.out else retro / "map.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
 
-    cov = coverage(days)
+    cov = story_coverage(story, episodes) if story else coverage(days)
+    unit = "챕터" if story else "활동일"
     signature = "|".join(sorted(f"{e['slug'] or e['title']}:{e['stage']}" for e in episodes)) + \
         f"#cov{cov['covered']}/{cov['total']}#plan{len(backlog)}"
     state_file = retro / ".timeline" / "map-state.txt"
@@ -446,7 +501,7 @@ def main(argv=None):
         dot = STAGE_LABEL[e["stage"]][0]
         counts[dot] = counts.get(dot, 0) + 1
     summary = " ".join(f"{d}{n}" for d, n in counts.items()) or "에피소드 없음"
-    print(f"작성됨: {out} — 활동 {cov['total']}일 중 커버 {cov['covered_pct']}%·발행 {cov['published_pct']}% · 에피소드 {len(episodes)}개({summary}){' · 상태 변화 있음' if changed else ''}")
+    print(f"작성됨: {out} — {unit} {cov['total']}개 중 글이 된 것 {cov['covered_pct']}%·발행 {cov['published_pct']}% · 에피소드 {len(episodes)}개({summary}){' · 상태 변화 있음' if changed else ''}")
 
     if args.open == "always" or (args.open == "auto" and changed):
         _open_browser(out)

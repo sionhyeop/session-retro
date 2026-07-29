@@ -17,8 +17,11 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
 0. **설정 확인**: `retro/config.md`가 있으면 Read — `default_tags`·`audience`·"말투 메모"를
    글에 반영하고, `default_visibility`를 업로드 모드 기본값으로 쓴다(public이면 발행 직전
    한 번 더 확인 — 공개 명시 원칙 유지). 없으면 retro 스킬 초기화를 먼저 안내.
-   **문체 프로필** `~/.config/velog-retro/style.md`가 있으면 Read해서 글의 어미·리듬·표현에
-   적용한다(말투 메모와 병행, 충돌 시 최근에 만든 쪽 우선 후 사용자 확인).
+   **말투 결정** — `references/style-presets.md`의 우선순위를 따른다:
+   ① 사용자가 이번 글에 직접 지정한 말투 → ② config의 `style_preset`(plain/friendly/meme/tutor)
+   → ③ 학습 프로필 `~/.config/velog-retro/style.md`("내 말투") → ④ config의 말투 메모
+   → ⑤ 아무것도 없으면 friendly에 준해 쓰되, 첫 발행 때 프리셋 4종+내 말투 선택지를
+   제시하고(각 프리셋의 비교 샘플 활용) 선택을 config에 저장한다.
 0-1. **스펙 선택**: `ls -t retro/specs/*.md` — 여러 개면 제목·갱신일 목록을 보여주고 고르게 한다
    (기본: 최근 갱신). 1개뿐이거나 사용자가 이미 지정했으면 바로 진행.
    부작 스펙(`-part1`, `-part2`)은 부별로 각각 글을 만들고 velog 시리즈명을 제안한다

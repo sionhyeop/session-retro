@@ -23,6 +23,7 @@ description: Claude Code 세션의 시행착오를 에피소드(주제 단위) �
    default_tags: [Claude Code, 회고]
    series: ""                    # velog 시리즈명 (API 연동 전까지 메모)
    velog_username: ""            # 말투 학습·발행 URL에 사용
+   style_preset: ""              # plain | friendly | meme | tutor | 빈값=학습 프로필(내 말투)
    audience: 팀원/멘토/블로그 독자
    ---
 

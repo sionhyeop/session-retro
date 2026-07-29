@@ -25,6 +25,7 @@ description: Claude Code 세션의 시행착오를 에피소드(주제 단위) �
    velog_username: ""            # 말투 학습·발행 URL에 사용
    style_preset: ""              # plain | friendly | meme | tutor | 빈값=학습 프로필(내 말투)
    thumbnail_style: gradient     # gradient | terminal | pattern | off — 썸네일 타이틀 카드 스타일
+   decoration: standard          # minimal | standard | rich — 가독성 장치(이모지 라벨·형광펜 등) 수준
    audience: 팀원/멘토/블로그 독자
    ---
 

@@ -25,6 +25,41 @@
 - 마크다운 이미지 문법은 크기 지정이 안 된다. 크기가 필요하면 `<img src="…" width="600">`.
 - 인용구(`>`)는 배운 점·핵심 문장 강조에 사용.
 
+## 가독성 장치 — 꾸밈 수준(decoration)
+
+> 근거: velog 렌더러 소스(velopert/velog-client `MarkdownRender.tsx`의 sanitize allowlist) 확정.
+> **에디터 미리보기는 새니타이즈를 건너뛴다** — 미리보기에서 되는 것처럼 보여도 발행하면
+> 깨질 수 있으므로, 검증 기준은 항상 발행본(비공개)이다.
+
+`retro/config.md`의 `decoration` 값(글별 자연어 변경 가능: "이번 글은 담백하게"):
+
+- **minimal**: 헤딩(h2/h3)·볼드·인라인코드·표·대단원 구분선만. 이모지·형광펜 없음.
+- **standard (기본)**: minimal +
+  - **TL;DR**: 글 상단 `> 📌 **세 줄 요약**` 콜아웃 (1,500자 이상 글 필수)
+  - **이모지 라벨 체계** (의미 고정, 한 글에 5종 이하): 📌 요약 · 💡 발견/배운 것 · 🔍 조사/분석
+    · 🐛 삽질/트러블 · ✅ 결과/해결 — 헤딩 접두와 콜아웃(`> 💡 **배운 것**: …`)에만.
+    문장 중간 장식용 이모지는 금지.
+  - **형광펜**: `<span style="background-color:#fff5b1">결론 문장</span>` — 문단당 1회,
+    글 전체 3~5회. 팔레트: #fff5b1(핵심) #ffdce0(경고) #dcffe4(성공).
+  - **기호**: `→`(변화: "3.2s → 0.8s"), ✓/❌(되는 것/안 되는 것 대비 목록), `- [x]` 체크리스트(한 것/남은 것)
+- **rich**: standard + 글자색 `<span style="color:#f8312f">`(에러·경고 문자열 한정),
+  형광펜 색 2종 병용, 섹션별 콜아웃, `<img width="60%">` 크기 조절 적극.
+
+### 모든 수준 공통 규칙 (velog 렌더러 특성)
+
+- 목차(TOC)는 **h1~h3만** 수집한다 — 세부 구분은 h3에서 멈추고, 그 아래는 **볼드 단독행**으로.
+- 단일 엔터가 곧 줄바꿈(`remark-breaks`) — 문단은 빈 줄로 분리, 모바일 기준 3~4줄 초과 금지.
+- 코드블록 언어는 Prism 로드 목록만 지정: bash, ts, js, jsx, tsx, css, scss, python, go, java,
+  c, cpp, csharp, graphql, php, sql, swift, kotlin, erlang, elixir, ruby, rust, yaml, dart.
+  목록 밖 언어(haskell 등)는 언어 지정을 생략한다(오염된 하이라이트 방지).
+- 콜아웃은 화면당 1~2개 — 연속 2개 이상이면 본문으로 승격.
+
+### 쓰면 깨지는 것 (발행 시 제거됨 — 절대 금지)
+
+`<details>/<summary>`(접기), `<mark>`, `<kbd>`, `<u>`, `<sup>/<sub>`, `<font>`, 각주 `[^1]`,
+`align` 속성, span 이외 태그의 style, YouTube·CodeSandbox·CodePen 외 iframe.
+접기가 필요하면 → 섹션 분리 또는 gist 링크. 하이라이트는 → span 형광펜.
+
 ## 이미지 경로 규칙
 
 - 초안 MD는 `retro/out/blog/`에 저장되므로 로컬 이미지는 `../../assets/` 로 시작하는 상대 경로로 적는다.

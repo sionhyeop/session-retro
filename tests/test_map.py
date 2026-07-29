@@ -89,16 +89,50 @@ def test_next_suggestion_prefers_least_progressed(tmp_path):
     (retro / "overview.md").write_text("## 에피소드 목차\n- 배포 자동화\n", encoding="utf-8")
     eps = bm.collect(retro)
     nxt = bm.next_suggestion(eps)
-    assert "배포 자동화" in nxt["title"]
+    assert nxt["kind"] == "episode" and "배포 자동화" in nxt["title"]
 
 
-def test_render_html_self_contained(tmp_path):
+def test_parse_period():
+    import datetime
+    assert bm.parse_period("2026-07-01 ~ 2026-07-05") == (
+        datetime.date(2026, 7, 1), datetime.date(2026, 7, 5))
+    assert bm.parse_period("") is None
+
+
+def _day(iso, sessions=1, commits=0):
+    import datetime
+    return {"date": datetime.date.fromisoformat(iso), "sessions": ["세션 제목"] * sessions,
+            "turns": sessions * 3, "errors": 0, "commits": commits}
+
+
+def test_assign_days_coverage_and_uncovered_run():
+    import datetime
+    days = [_day("2026-07-01"), _day("2026-07-02"), _day("2026-07-05", sessions=3, commits=4)]
+    ep = {"slug": "a", "title": "에피소드A", "period": "", "updated": "",
+          "dates": (datetime.date(2026, 7, 1), datetime.date(2026, 7, 2)),
+          "problems": [], "gaps": [], "images": 0, "stage": "published_public",
+          "deck": False, "url": ""}
+    bm.assign_days(days, [ep])
+    assert days[0]["episode"] is ep and days[1]["episode"] is ep
+    assert days[2]["episode"] is None  # 미작성 구간
+    cov = bm.coverage(days)
+    assert (cov["total"], cov["covered"], cov["published"]) == (3, 2, 2)
+    runs = bm.uncovered_runs(days)
+    assert len(runs) == 1 and runs[0][0]["date"].day == 5
+    nxt = bm.next_suggestion([ep], days)
+    assert nxt["kind"] == "uncovered"  # 미작성 구간이 최우선 글감
+
+
+def test_render_html_shows_uncovered_and_coverage(tmp_path):
+    import datetime
     retro = make_retro(tmp_path)
     (retro / "specs" / "2026-07-10-auth.md").write_text(SPEC_MD, encoding="utf-8")
     (retro / "assets" / "inbox" / "x.png").write_bytes(b"i")
     eps = bm.collect(retro)
-    html = bm.render_html(eps, bm.assets_summary(retro), "테스트프로젝트")
+    days = bm.assign_days([_day("2026-07-10"), _day("2026-07-20", sessions=2)], eps)
+    html = bm.render_html(eps, days, bm.assets_summary(retro), "테스트프로젝트")
     assert "인증 삽질기" in html and "stage-spec" in html
+    assert "미작성 구간" in html and "50%" in html  # 커버리지 인사이트
     assert "⚠️" in html  # 이미지 부족 배지
     for line in html.splitlines():
         assert not (("http://" in line or "https://" in line) and "velog.io" not in line and "xmlns" not in line)
@@ -110,7 +144,7 @@ def test_cli_writes_map(tmp_path):
     out = retro / "map.html"
     rc = subprocess.run(
         [sys.executable, str(SCRIPT), "--retro-dir", str(retro), "--out", str(out)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, cwd=str(tmp_path),
     ).returncode
     assert rc == 0 and "콘텐츠 맵" in out.read_text(encoding="utf-8")
 
@@ -120,6 +154,7 @@ def test_auto_open_only_on_state_change(tmp_path, monkeypatch):
     (retro / "specs" / "2026-07-10-auth.md").write_text(SPEC_MD, encoding="utf-8")
     opened = []
     monkeypatch.setattr(bm, "_open_browser", lambda p: opened.append(str(p)))
+    monkeypatch.setattr(bm, "collect_timeline", lambda **k: [])
     bm.main(["--retro-dir", str(retro), "--open", "auto"])
     assert len(opened) == 1  # 최초 생성 = 변화로 간주
     bm.main(["--retro-dir", str(retro), "--open", "auto"])
@@ -135,6 +170,6 @@ def test_auto_open_only_on_state_change(tmp_path, monkeypatch):
 def test_cli_no_retro_dir_exit_1(tmp_path):
     rc = subprocess.run(
         [sys.executable, str(SCRIPT), "--retro-dir", str(tmp_path / "nope")],
-        capture_output=True, text=True,
+        capture_output=True, text=True, cwd=str(tmp_path),
     ).returncode
     assert rc == 1

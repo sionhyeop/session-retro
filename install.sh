@@ -16,7 +16,11 @@ REPO="$REPO" SETTINGS="$SETTINGS" python3 - <<'PY'
 import json, os, shutil, time
 repo = os.environ["REPO"]
 settings_path = os.environ["SETTINGS"]
-cmd = f'python3 "{repo}/hooks/archive_transcript.py"'
+WANTED = [
+    ("SessionEnd", "archive_transcript.py"),
+    ("PreCompact", "archive_transcript.py"),
+    ("SessionStart", "retro_nudge.py"),
+]
 try:
     with open(settings_path, encoding="utf-8") as f:
         settings = json.load(f)
@@ -25,14 +29,14 @@ except (OSError, json.JSONDecodeError):
 else:
     shutil.copy2(settings_path, f"{settings_path}.bak-{time.strftime('%Y%m%d%H%M%S')}")
 hooks = settings.setdefault("hooks", {})
-for event in ("SessionEnd", "PreCompact"):
+for event, script in WANTED:
     entries = hooks.setdefault(event, [])
     flat = [h.get("command", "") for e in entries for h in e.get("hooks", [])]
-    if not any("archive_transcript.py" in c for c in flat):
-        entries.append({"hooks": [{"type": "command", "command": cmd}]})
-        print(f"훅 등록: {event}")
+    if not any(script in c for c in flat):
+        entries.append({"hooks": [{"type": "command", "command": f'python3 "{repo}/hooks/{script}"'}]})
+        print(f"훅 등록: {event} ({script})")
     else:
-        print(f"훅 이미 등록됨: {event}")
+        print(f"훅 이미 등록됨: {event} ({script})")
 os.makedirs(os.path.dirname(settings_path), exist_ok=True)
 with open(settings_path, "w", encoding="utf-8") as f:
     json.dump(settings, f, ensure_ascii=False, indent=2)

@@ -261,25 +261,30 @@ def render_html(episodes, days, assets, project_name, backlog=None):
     if not rows:
         rows.append('<p class="dim">활동 기록이 없습니다 — 세션이 쌓이면 지도가 그려집니다.</p>')
 
-    # 백로그 — 앞으로 쓸 것들 (AI가 미리 스케치한 기획)
-    plan_cards = []
-    for b in backlog:
-        plan_cards.append(f"""
-  <div class="plan-card">
-    <b>⚪ {html.escape(b['title'])}</b>
-    <span class="dim">{html.escape(b['hook'])}</span>
-    <span class="dim">근거: {html.escape(b['basis'] or '기획')}{' · ' + html.escape(b['tags']) if b['tags'] else ''}</span>
-    {go_btn(NEXT_ACTION['planned'](b['title']))}
-  </div>""")
+    # 흐름도 — 기획 → 스펙 → 초안 → 비공개 → 공개 파이프라인 위에 콘텐츠를 배치
+    def kcard(title, sub, stage, url="", extra=""):
+        link = f' <a href="{html.escape(url)}">글 보기</a>' if url else ""
+        return (f'<div class="kcard stage-{stage}"><b>{html.escape(title[:40])}</b>'
+                f'<span class="dim">{html.escape(sub)}</span>{extra}'
+                f'{go_btn(NEXT_ACTION[stage](title))}{link}</div>')
 
-    # 에피소드 요약 스트립 (단계별 다음 액션 버튼 포함)
-    chips = []
+    lanes_content = {s: [] for s in STAGES}
+    for b in backlog:
+        basis = f"근거: {b['basis']}" if b["basis"] else "기획"
+        lanes_content["planned"].append(kcard(b["title"], f"{b['hook']} · {basis}", "planned"))
     for e in episodes:
-        dot, label = STAGE_LABEL[e["stage"]][0], STAGE_LABEL[e["stage"]][1]
-        gap = f" · ⚠️{len(e['gaps'])}" if e["gaps"] else ""
-        link = f' <a href="{html.escape(e["url"])}">글</a>' if e["url"] else ""
-        btn = go_btn(NEXT_ACTION[e["stage"]](e["title"]))
-        chips.append(f'<span class="chip stage-{e["stage"]}">{dot} {html.escape(e["title"][:30])} <i>{label}{gap}</i>{link} {btn}</span>')
+        gap = f'<span class="dim">⚠️ 이미지 부족 {len(e["gaps"])}곳</span>' if e["gaps"] else ""
+        sub = e["period"] or STAGE_LABEL[e["stage"]][1]
+        lanes_content[e["stage"]].append(kcard(e["title"], sub, e["stage"], url=e["url"], extra=gap))
+
+    lane_html = []
+    for i, s in enumerate(STAGES):
+        dot, label = STAGE_LABEL[s]
+        cards = "".join(lanes_content[s]) or '<div class="empty">—</div>'
+        lane_html.append(f'<div class="lane"><h3>{dot} {label} <i>{len(lanes_content[s])}</i></h3>{cards}</div>')
+        if i < len(STAGES) - 1:
+            lane_html.append('<div class="flow-arrow">→</div>')
+    board = "".join(lane_html)
 
     nxt_html = ""
     if nxt:
@@ -318,14 +323,26 @@ a {{ color:var(--accent); }}
 .node.uncovered .body {{ border-style:dashed; opacity:.85; }}
 .tag {{ display:inline-block; margin-top:6px; font-size:13px; border-radius:999px; padding:2px 12px; background:rgba(122,162,247,.12); }}
 .uncovered-tag {{ background:transparent; border:1px dashed var(--line); color:var(--dim); }}
-.plan-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }}
-.plan-card {{ background:var(--card); border:1px dashed var(--line); border-radius:12px; padding:12px 16px;
-  display:flex; flex-direction:column; gap:5px; font-size:14.5px; }}
+.board {{ display:flex; align-items:stretch; overflow-x:auto; padding:4px 0 12px; }}
+.lane {{ flex:1; min-width:185px; background:rgba(122,162,247,.04); border:1px solid var(--line);
+  border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:10px; }}
+.lane h3 {{ font-size:14.5px; color:var(--dim); font-weight:600; }}
+.lane h3 i {{ font-style:normal; color:var(--accent); margin-left:4px; }}
+.lane .empty {{ color:var(--line); text-align:center; padding:18px 0; font-size:18px; }}
+.flow-arrow {{ display:flex; align-items:flex-start; padding-top:10px; font-size:26px;
+  font-weight:700; color:var(--accent); padding-left:6px; padding-right:6px; flex-shrink:0; }}
+.kcard {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:11px 13px;
+  display:flex; flex-direction:column; gap:5px; font-size:14px; }}
+.kcard b {{ font-size:14.5px; line-height:1.4; }}
+.kcard.stage-planned {{ border-style:dashed; }}
+.kcard.stage-spec {{ border-left:3px solid var(--c-spec); }}
+.kcard.stage-draft {{ border-left:3px solid var(--c-draft); }}
+.kcard.stage-published_private {{ border-left:3px solid var(--c-priv); }}
+.kcard.stage-published_public {{ border-left:3px solid var(--c-pub); }}
 .go {{ align-self:flex-start; margin-top:4px; background:transparent; border:1px solid var(--accent);
   color:var(--accent); border-radius:999px; padding:3px 14px; font-size:12.5px; cursor:pointer;
   font-family:inherit; }}
 .go:hover {{ background:rgba(122,162,247,.15); }}
-.chip .go {{ margin:0 0 0 6px; }}
 #toast {{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--accent);
   color:var(--bg); border-radius:999px; padding:9px 22px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; }}
 </style></head><body><main>
@@ -338,11 +355,10 @@ a {{ color:var(--accent); }}
   <div><b>{len(backlog)}</b><span>기획 백로그</span></div>
 </div>
 {nxt_html}
-<h2>앞으로 쓸 것들 — 기획 백로그</h2>
-<div class="plan-grid">{''.join(plan_cards) or '<span class="dim">비어 있음 — "콘텐츠 기획해줘"라고 하면 AI가 넓게 스케치해 채웁니다 (retro/plan.md)</span>'}</div>
-<h2>에피소드</h2>
-<div class="chips">{''.join(chips) or '<span class="dim">아직 없음 — /retro로 시작</span>'}</div>
-<h2>전체 흐름 — 무엇을 썼고, 무엇이 비었나</h2>
+<h2>콘텐츠 흐름도 — 기획에서 공개까지</h2>
+<p class="dim" style="margin-bottom:8px">콘텐츠가 왼쪽에서 오른쪽으로 흘러갑니다. 기획 레인이 비면 "콘텐츠 기획해줘"로 채우세요 (retro/plan.md).</p>
+<div class="board">{board}</div>
+<h2>활동 기록 — 무엇을 썼고, 무엇이 비었나</h2>
 <div class="flow">{''.join(rows)}
 </div>
 <p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신됩니다.</p>

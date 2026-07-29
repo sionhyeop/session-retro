@@ -115,6 +115,23 @@ def test_cli_writes_map(tmp_path):
     assert rc == 0 and "콘텐츠 맵" in out.read_text(encoding="utf-8")
 
 
+def test_auto_open_only_on_state_change(tmp_path, monkeypatch):
+    retro = make_retro(tmp_path)
+    (retro / "specs" / "2026-07-10-auth.md").write_text(SPEC_MD, encoding="utf-8")
+    opened = []
+    monkeypatch.setattr(bm, "_open_browser", lambda p: opened.append(str(p)))
+    bm.main(["--retro-dir", str(retro), "--open", "auto"])
+    assert len(opened) == 1  # 최초 생성 = 변화로 간주
+    bm.main(["--retro-dir", str(retro), "--open", "auto"])
+    assert len(opened) == 1  # 상태 그대로 → 안 연다
+    blog = retro / "out" / "blog" / "2026-07-12-auth.md"
+    blog.write_text("---\ntitle: 인증 삽질기\n---\n본문", encoding="utf-8")
+    bm.main(["--retro-dir", str(retro), "--open", "auto"])
+    assert len(opened) == 2  # spec → draft 로 상태 변화 → 연다
+    bm.main(["--retro-dir", str(retro), "--open", "always"])
+    assert len(opened) == 3  # always는 무조건
+
+
 def test_cli_no_retro_dir_exit_1(tmp_path):
     rc = subprocess.run(
         [sys.executable, str(SCRIPT), "--retro-dir", str(tmp_path / "nope")],

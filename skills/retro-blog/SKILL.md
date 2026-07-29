@@ -65,8 +65,8 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환해 퇴
      나오면 사용자에게 전달(코드블록은 그대로 유지되므로 글이 깨지진 않음).
 4. 성공(종료 코드 0): 출력된 글 주소를 전달하고, 비공개 상태이며 "공개로 바꿔줘"라고 하면
    전환해줄 수 있음을 안내한다. 발행 기록은 `<파일>.velog.json` 사이드카에 저장된다.
-   마지막으로 콘텐츠 맵을 재생성한다:
-   `python3 "$HOME/.claude/skills/retro/scripts/build_map.py"`
+   마지막으로 콘텐츠 맵을 재생성한다 (상태가 바뀌었으면 브라우저로 자동 열림, 요약은 사용자에게 전달):
+   `python3 "$HOME/.claude/skills/retro/scripts/build_map.py" --open auto`
    - 글에 이미지가 0장이면 업로드 전에 경고한다: "이미지가 없습니다 — retro/assets/inbox/에
      넣어주시면 배치할게요. 그대로 올릴까요?"
 

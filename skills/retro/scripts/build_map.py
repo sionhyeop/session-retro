@@ -167,10 +167,26 @@ a {{ color:var(--accent); word-break:break-all; }}
 </main></body></html>"""
 
 
+def _open_browser(path):
+    """맵을 기본 브라우저로 연다 (WSL→Windows 지원). 실패해도 무시 — 보조 기능."""
+    import subprocess
+    try:
+        if Path("/mnt/c/Windows/explorer.exe").is_file():
+            win = subprocess.run(["wslpath", "-w", str(path)], capture_output=True,
+                                 text=True, check=True).stdout.strip()
+            subprocess.Popen(["/mnt/c/Windows/explorer.exe", win])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except OSError:
+        pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="retro 콘텐츠 맵 생성")
     ap.add_argument("--retro-dir", default="retro")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--open", choices=["never", "auto", "always"], default="never",
+                    help="auto=에피소드 상태가 바뀌었을 때만 브라우저로 열기")
     args = ap.parse_args(argv)
     retro = Path(args.retro_dir)
     if not retro.is_dir():
@@ -181,7 +197,24 @@ def main(argv=None):
     out = Path(args.out) if args.out else retro / "map.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
-    print(f"작성됨: {out} (에피소드 {len(episodes)}개)")
+
+    signature = "|".join(sorted(f"{e['slug'] or e['title']}:{e['stage']}" for e in episodes))
+    state_file = retro / ".timeline" / "map-state.txt"
+    prev = state_file.read_text(encoding="utf-8") if state_file.is_file() else None
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(signature, encoding="utf-8")
+    changed = prev != signature
+
+    counts = {}
+    for e in episodes:
+        dot = STAGE_LABEL[e["stage"]][0]
+        counts[dot] = counts.get(dot, 0) + 1
+    summary = " ".join(f"{d}{n}" for d, n in counts.items()) or "에피소드 없음"
+    print(f"작성됨: {out} (에피소드 {len(episodes)}개: {summary}{' · 상태 변화 있음' if changed else ''})")
+
+    if args.open == "always" or (args.open == "auto" and changed):
+        _open_browser(out)
+        print("→ 브라우저로 열었습니다")
     return 0
 
 

@@ -145,7 +145,8 @@ retro/가 있는 프로젝트에서 브라우저 검증 스크린샷을 찍을 �
 
 ## 9. 콘텐츠 맵 갱신 + 완료 보고
 
-1. `python3 "<skill-dir>/scripts/build_map.py"` 실행 → `retro/map.html` 재생성
-   (에피소드 상태 색칠 + 이미지 부족 배지 + 다음 작성 추천).
+1. `python3 "<skill-dir>/scripts/build_map.py" --open auto` 실행 → `retro/map.html` 재생성.
+   에피소드 상태가 바뀌었으면 브라우저로 자동으로 열린다. 스크립트가 출력한
+   상태 요약(⚪🔵🟡🟣🟢 분포)을 사용자에게 그대로 전달한다.
 2. 생성/갱신된 스펙과 overview를 요약하고, 맵 경로와 함께 "이제 /retro-blog(velog 글)
    또는 /retro-ppt(발표 덱)로 내보낼 수 있어요"를 안내한다.

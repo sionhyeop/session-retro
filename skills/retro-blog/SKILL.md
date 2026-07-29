@@ -1,6 +1,6 @@
 ---
 name: retro-blog
-description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 비공개 발행까지 수행한다(공개는 명시 요청 시만 — "공개로 바꿔줘"로 전환). "블로그로 내보내", "velog에 올려줘", "회고 글 써줘", "공개로/비공개로 바꿔줘" 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
+description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 비공개 발행까지 수행한다(공개는 명시 요청 시만 — "공개로 바꿔줘"로 전환). "블로그로 내보내", "velog에 올려줘", "회고 글 써줘", "공개로/비공개로 바꿔줘", "말투 학습해줘"(내 velog 글에서 문체 프로필 증류) 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
 ---
 
 # retro-blog — 회고 스펙 → velog 초안
@@ -17,6 +17,8 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
 0. **설정 확인**: `retro/config.md`가 있으면 Read — `default_tags`·`audience`·"말투 메모"를
    글에 반영하고, `default_visibility`를 업로드 모드 기본값으로 쓴다(public이면 발행 직전
    한 번 더 확인 — 공개 명시 원칙 유지). 없으면 retro 스킬 초기화를 먼저 안내.
+   **문체 프로필** `~/.config/velog-retro/style.md`가 있으면 Read해서 글의 어미·리듬·표현에
+   적용한다(말투 메모와 병행, 충돌 시 최근에 만든 쪽 우선 후 사용자 확인).
 0-1. **스펙 선택**: `ls -t retro/specs/*.md` — 여러 개면 제목·갱신일 목록을 보여주고 고르게 한다
    (기본: 최근 갱신). 1개뿐이거나 사용자가 이미 지정했으면 바로 진행.
    부작 스펙(`-part1`, `-part2`)은 부별로 각각 글을 만들고 velog 시리즈명을 제안한다
@@ -35,6 +37,19 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
    `python3 "$HOME/.claude/skills/retro/scripts/build_map.py"`
    - 글에 이미지가 0장이면 업로드 전에 경고한다: "이미지가 없습니다 — retro/assets/inbox/에
      넣어주시면 배치할게요. 그대로 올릴까요?"
+
+## 말투 학습 (사용자가 "말투 학습해줘" 요청 시)
+
+1. username 확보: `retro/config.md`의 `velog_username` → 없으면 발행 사이드카(`*.velog.json`)의
+   username → 그것도 없으면 사용자에게 묻고 config에 저장.
+2. 수집(공개 글만, 인증 불필요): `python3 "<skill-dir>/scripts/style_learn.py" <username> --max 10`
+   → `~/.config/velog-retro/style-corpus.md` 생성. 공개 글이 없으면(exit 1) 그대로 안내하고 종료.
+3. 코퍼스를 Read하고 **따라 할 수 있는 규칙 형태**로 문체 프로필을 증류한다:
+   어미 분포(습니다/어요/다체 비율), 문단 길이·리듬, 이모지·기호 습관, 자주 쓰는 연결어·표현,
+   제목 스타일, 코드블록·인용 사용 패턴. 각 항목에 실제 예시 문장 1개씩 인용.
+4. `~/.config/velog-retro/style.md`로 저장(계정 단위 — 모든 프로젝트에 적용됨) 후
+   프로필 요약을 사용자에게 보여주고 어색한 규칙은 수정받는다.
+5. 이후 글 작성 시 절차 0에서 자동 반영된다. 갱신하고 싶으면 다시 "말투 학습해줘".
 
 ## 공개/비공개 전환
 

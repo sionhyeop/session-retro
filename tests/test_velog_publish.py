@@ -191,7 +191,7 @@ def test_cmd_publish_mode_flags(home, tmp_path, monkeypatch):
     md.write_text(MD.replace("![스크린샷](assets/a.png)", ""), encoding="utf-8")
     captured = {}
 
-    def fake_write(title, body, tags, thumbnail, tokens, temp=False, private=True):
+    def fake_write(title, body, tags, thumbnail, tokens, temp=False, private=True, series_id=None):
         captured.update(temp=temp, private=private)
         return {"id": "p", "url_slug": "s", "user": {"username": "u"}}
 
@@ -231,6 +231,108 @@ def test_cmd_visibility_missing_sidecar_exit_5(home, tmp_path):
     md = tmp_path / "p.md"
     md.write_text(MD, encoding="utf-8")
     assert vp.cmd_visibility(str(md), public=True) == 5
+
+
+# ── v1.5: 썸네일·시리즈·수정 동기화·mermaid ──────────────────────────
+
+def test_first_image_url():
+    md = "텍스트\n![a](https://velog.velcdn.com/u/a.png)\n![b](https://velog.velcdn.com/u/b.png)"
+    assert vp.first_image_url(md) == "https://velog.velcdn.com/u/a.png"
+    assert vp.first_image_url("이미지 없음") is None
+
+
+def test_write_post_series_id(home, monkeypatch):
+    captured = {}
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        captured["data"] = json.loads(data)
+        return 200, [], json.dumps({"data": {"writePost": {"id": "p", "url_slug": "s"}}}).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    vp.write_post("t", "b", [], None, {"access_token": "a"}, series_id="s-1")
+    assert captured["data"]["variables"]["input"]["series_id"] == "s-1"
+
+
+def test_fetch_series_uses_v2(home, monkeypatch):
+    captured = {}
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        captured["url"], captured["data"] = url, json.loads(data)
+        return 200, [], json.dumps({"data": {"userSeriesList": [
+            {"id": "s1", "name": "회고 시리즈", "posts_count": 3},
+        ]}}).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    series = vp.fetch_series("mico")
+    assert captured["url"] == vp.V2_GRAPHQL
+    assert series[0]["name"] == "회고 시리즈"
+
+
+def test_cmd_publish_auto_thumbnail_and_series(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    blog = tmp_path / "p.md"
+    blog.write_text(MD, encoding="utf-8")
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "a.png").write_bytes(b"img")
+    monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/a.png")
+    captured = {}
+
+    def fake_write(title, body, tags, thumbnail, tokens, temp=False, private=True, series_id=None):
+        captured.update(thumbnail=thumbnail, series_id=series_id)
+        return {"id": "p", "url_slug": "s", "user": {"username": "u"}}
+
+    monkeypatch.setattr(vp, "write_post", fake_write)
+    assert vp.cmd_publish(str(blog), series_id="s-9") == 0
+    assert captured["thumbnail"] == "https://velog.velcdn.com/u/a.png"  # 본문 첫 이미지 자동 지정
+    assert captured["series_id"] == "s-9"
+    sidecar = json.loads(blog.with_suffix(".velog.json").read_text(encoding="utf-8"))
+    assert sidecar["series_id"] == "s-9"
+
+
+def test_convert_mermaid_replaces_block(home, tmp_path, monkeypatch):
+    monkeypatch.setattr(vp, "_http", lambda *a, **k: (200, [], b"\x89PNGfake"))
+    monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/d.png")
+    md = "앞\n\n```mermaid\ngraph TD; A-->B\n```\n\n뒤"
+    new_md, n = vp.convert_mermaid(md, {"access_token": "a"})
+    assert n == 1
+    assert "```mermaid" not in new_md
+    assert "![다이어그램](https://velog.velcdn.com/u/d.png)" in new_md
+
+
+def test_convert_mermaid_failure_keeps_block(home, monkeypatch):
+    monkeypatch.setattr(vp, "_http", lambda *a, **k: (500, [], b"boom"))
+    md = "```mermaid\ngraph TD; A-->B\n```"
+    new_md, n = vp.convert_mermaid(md, {"access_token": "a"})
+    assert n == 0 and "```mermaid" in new_md
+
+
+def test_cmd_update_flow(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD.replace("![스크린샷](assets/a.png)", "수정된 본문"), encoding="utf-8")
+    md.with_suffix(".velog.json").write_text(json.dumps({
+        "id": "p-1", "url_slug": "s", "username": "u", "title": "테스트 회고",
+        "tags": ["테스트"], "thumbnail": None, "visibility": "private",
+    }), encoding="utf-8")
+    captured = {}
+
+    def fake_edit(post_id, title, body, tags, thumbnail, url_slug, tokens,
+                  temp=False, private=True, series_id=None):
+        captured.update(post_id=post_id, private=private, body=body)
+        return {"id": post_id, "url_slug": url_slug}
+
+    monkeypatch.setattr(vp, "edit_post", fake_edit)
+    assert vp.cmd_update(str(md)) == 0
+    assert captured["post_id"] == "p-1" and captured["private"] is True  # 비공개 유지
+    assert "수정된 본문" in captured["body"]
+    assert md.with_suffix(".published.md").is_file()
+
+
+def test_cmd_update_missing_sidecar_exit_5(home, tmp_path):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD, encoding="utf-8")
+    assert vp.cmd_update(str(md)) == 5
 
 
 def test_cmd_publish_without_tokens_exit_2(home, tmp_path):

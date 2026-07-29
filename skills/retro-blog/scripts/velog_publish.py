@@ -9,17 +9,24 @@
 - 표준 라이브러리만 사용.
 종료 코드: 0 성공 / 2 토큰 없음·만료 / 3 이미지 업로드 실패 / 4 GraphQL 실패 / 5 MD 형식·발행기록 오류
 """
+import argparse
+import base64
 import json
 import mimetypes
 import re
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 import uuid
+import zlib
 from pathlib import Path
 
 UPLOAD_URL = "https://v3.velog.io/api/files/v3/upload"
-GRAPHQL_URL = "https://v3.velog.io/graphql"
+GRAPHQL_URL = "https://v3.velog.io/graphql"      # 쓰기(v3)
+V2_GRAPHQL = "https://v2.velog.io/graphql"       # 읽기(v2) — 시리즈 목록 등
+KROKI_URL = "https://kroki.io/mermaid/png/"      # mermaid → PNG (한글 렌더링 검증됨)
+UA = {"User-Agent": "session-retro/velog_publish"}
 TOKEN_PATH = Path.home() / ".config" / "velog-retro" / "tokens.json"
 
 
@@ -215,25 +222,110 @@ def parse_frontmatter(md_text):
     return meta, body.lstrip("\n")
 
 
-def write_post(title, body, tags, thumbnail, tokens, temp=False, private=True):
+def write_post(title, body, tags, thumbnail, tokens, temp=False, private=True, series_id=None):
     """기본값 = 비공개 발행(is_private). temp=True면 임시저장."""
     data = _graphql("WritePost", WRITE_POST_MUTATION, {
         "title": title, "body": body, "tags": tags,
         "is_markdown": True, "is_temp": temp, "is_private": private,
         "url_slug": "", "meta": {}, "thumbnail": thumbnail,
-        "series_id": None, "token": None,
+        "series_id": series_id, "token": None,
     }, tokens)
     return data["writePost"]
 
 
-def edit_post(post_id, title, body, tags, thumbnail, url_slug, tokens, temp=False, private=True):
+def edit_post(post_id, title, body, tags, thumbnail, url_slug, tokens,
+              temp=False, private=True, series_id=None):
     data = _graphql("EditPost", EDIT_POST_MUTATION, {
         "id": post_id, "title": title, "body": body, "tags": tags,
         "is_markdown": True, "is_temp": temp, "is_private": private,
         "url_slug": url_slug or "", "meta": {}, "thumbnail": thumbnail,
-        "series_id": None, "token": None,
+        "series_id": series_id, "token": None,
     }, tokens)
     return data["editPost"]
+
+
+SERIES_QUERY = """
+query UserSeriesList($username: String!) {
+  userSeriesList(username: $username) {
+    id
+    name
+    url_slug
+    posts_count
+  }
+}
+""".strip()
+
+
+def fetch_series(username):
+    """내 시리즈 목록 조회 (v2 읽기 API, 인증 불필요)."""
+    status, _, body = _http(
+        V2_GRAPHQL, method="POST",
+        headers={"Content-Type": "application/json", **UA},
+        data=json.dumps({"query": SERIES_QUERY, "variables": {"username": username}}).encode(),
+    )
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        raise VelogError(f"시리즈 조회 응답 해석 실패(HTTP {status})")
+    if status != 200 or parsed.get("errors"):
+        msg = (parsed.get("errors") or [{}])[0].get("message", f"HTTP {status}")
+        raise VelogError(f"시리즈 조회 실패: {msg}")
+    return parsed["data"]["userSeriesList"] or []
+
+
+def cmd_series(username):
+    try:
+        series = fetch_series(username)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 4
+    if not series:
+        print(f"@{username} 에게 아직 시리즈가 없습니다. velog에서 만들 수 있어요.")
+        return 0
+    for s in series:
+        print(f"{s['id']}\t{s['name']}\t(글 {s.get('posts_count', '?')}개)")
+    return 0
+
+
+def first_image_url(md_text):
+    """본문의 첫 원격 이미지 URL — 썸네일 자동 지정용."""
+    for m in IMG_RE.finditer(md_text):
+        if m.group(2).startswith(("http://", "https://")):
+            return m.group(2)
+    return None
+
+
+MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
+
+
+def convert_mermaid(md_text, tokens):
+    """velog는 mermaid를 렌더링하지 못한다 — kroki로 PNG를 만들어 CDN에 올리고 치환.
+
+    변환 실패 시 코드블록을 그대로 두고 경고만 남긴다(글이 깨지지 않게)."""
+    count = 0
+
+    def repl(m):
+        nonlocal count
+        code = m.group(1).strip()
+        try:
+            enc = base64.urlsafe_b64encode(zlib.compress(code.encode(), 9)).decode()
+            status, _, img = _http(KROKI_URL + enc, headers=dict(UA))
+            if status != 200 or not img:
+                raise VelogError(f"kroki HTTP {status}")
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                f.write(img)
+                tmp = Path(f.name)
+            try:
+                url = upload_image(tmp, tokens)
+            finally:
+                tmp.unlink(missing_ok=True)
+        except Exception as e:  # noqa: BLE001 — 변환은 best-effort
+            print(f"경고: mermaid 변환 실패({e}) — 코드블록 유지", file=sys.stderr)
+            return m.group(0)
+        count += 1
+        return f"![다이어그램]({url})"
+
+    return MERMAID_RE.sub(repl, md_text), count
 
 
 def _sidecar_path(path):
@@ -244,7 +336,7 @@ def _post_url(username, url_slug):
     return f"https://velog.io/@{username}/{url_slug}" if username and url_slug else "https://velog.io/saves"
 
 
-def cmd_publish(md_path, mode="private"):
+def cmd_publish(md_path, mode="private", series_id=None, keep_mermaid=False):
     """mode: private(기본, 비공개 발행) | public(공개 발행) | draft(임시저장)"""
     path = Path(md_path)
     if not path.is_file():
@@ -261,24 +353,29 @@ def cmd_publish(md_path, mode="private"):
         return 5
     try:
         new_body, n = rewrite_images(body, path.parent, tokens)
+        if not keep_mermaid:
+            new_body, n_mmd = convert_mermaid(new_body, tokens)
+            if n_mmd:
+                print(f"mermaid 다이어그램 {n_mmd}개를 이미지로 변환했습니다")
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 3
     published = path.with_suffix(".published.md")
     published.write_text(f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
     print(f"이미지 {n}개 업로드, 치환본 저장: {published}")
+    thumbnail = meta.get("thumbnail") or first_image_url(new_body)
     temp, private = {"draft": (True, False), "private": (False, True), "public": (False, False)}[mode]
     try:
-        result = write_post(title, new_body, meta.get("tags", []), meta.get("thumbnail"), tokens,
-                            temp=temp, private=private)
+        result = write_post(title, new_body, meta.get("tags", []), thumbnail, tokens,
+                            temp=temp, private=private, series_id=series_id)
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 4
     username = (result.get("user") or {}).get("username", "")
     _sidecar_path(path).write_text(json.dumps({
         "id": result["id"], "url_slug": result.get("url_slug", ""), "username": username,
-        "title": title, "tags": meta.get("tags", []), "thumbnail": meta.get("thumbnail"),
-        "visibility": mode,
+        "title": title, "tags": meta.get("tags", []), "thumbnail": thumbnail,
+        "series_id": series_id, "visibility": mode,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     if mode == "draft":
         print("임시저장(초안) 업로드 완료 ✅")
@@ -327,23 +424,92 @@ def cmd_visibility(md_path, public):
     return 0
 
 
+def cmd_update(md_path, keep_mermaid=False):
+    """발행된 글을 로컬 MD의 최신 내용으로 갱신한다(공개 상태·시리즈 유지)."""
+    path = Path(md_path)
+    sidecar_file = _sidecar_path(path)
+    if not path.is_file():
+        print(f"에러: MD 파일 없음 — {path}", file=sys.stderr)
+        return 5
+    if not sidecar_file.is_file():
+        print(f"에러: 발행 기록({sidecar_file.name})이 없습니다. 먼저 publish 하세요.", file=sys.stderr)
+        return 5
+    tokens = load_tokens()
+    if not tokens or not tokens.get("access_token"):
+        print("에러: 토큰 없음. 먼저 setup을 실행하세요.", file=sys.stderr)
+        return 2
+    sidecar = json.loads(sidecar_file.read_text(encoding="utf-8"))
+    meta, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+    title = meta.get("title") or sidecar.get("title", "")
+    tags = meta.get("tags") or sidecar.get("tags", [])
+    try:
+        new_body, n = rewrite_images(body, path.parent, tokens)
+        if not keep_mermaid:
+            new_body, _ = convert_mermaid(new_body, tokens)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 3
+    path.with_suffix(".published.md").write_text(
+        f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
+    thumbnail = meta.get("thumbnail") or first_image_url(new_body) or sidecar.get("thumbnail")
+    visibility = sidecar.get("visibility", "private")
+    try:
+        edit_post(sidecar["id"], title, new_body, tags, thumbnail,
+                  sidecar.get("url_slug", ""), tokens,
+                  temp=(visibility == "draft"), private=(visibility == "private"),
+                  series_id=sidecar.get("series_id"))
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 4
+    sidecar.update(title=title, tags=tags, thumbnail=thumbnail)
+    sidecar_file.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"글 업데이트 완료 ✅ (이미지 {n}개 처리, {visibility} 상태 유지)")
+    print(f"- 글 주소: {_post_url(sidecar.get('username', ''), sidecar.get('url_slug', ''))}")
+    return 0
+
+
 def main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if argv[:1] == ["setup"]:
+    ap = argparse.ArgumentParser(prog="velog_publish.py")
+    sub = ap.add_subparsers(dest="cmd")
+    sub.add_parser("setup")
+    p = sub.add_parser("publish")
+    p.add_argument("md")
+    p.add_argument("--draft", action="store_true")
+    p.add_argument("--private", action="store_true")
+    p.add_argument("--public", action="store_true")
+    p.add_argument("--series-id", default=None)
+    p.add_argument("--keep-mermaid", action="store_true")
+    u = sub.add_parser("update")
+    u.add_argument("md")
+    u.add_argument("--keep-mermaid", action="store_true")
+    v = sub.add_parser("visibility")
+    v.add_argument("md")
+    v.add_argument("--public", action="store_true")
+    v.add_argument("--private", action="store_true")
+    s = sub.add_parser("series")
+    s.add_argument("username")
+    args = ap.parse_args(argv)
+
+    if args.cmd == "setup":
         return cmd_setup()
-    if argv[:1] == ["publish"] and len(argv) >= 2:
+    if args.cmd == "publish":
         mode = "private"  # 기본값: 비공개 발행 — 공개는 명시적으로만
-        if "--draft" in argv:
+        if args.draft:
             mode = "draft"
-        if "--public" in argv:
+        if args.public:
             mode = "public"
-        return cmd_publish(argv[1], mode=mode)
-    if argv[:1] == ["visibility"] and len(argv) >= 3:
-        if "--public" in argv:
-            return cmd_visibility(argv[1], public=True)
-        if "--private" in argv:
-            return cmd_visibility(argv[1], public=False)
-    print("사용법: velog_publish.py setup | publish <md> [--draft|--private|--public] | visibility <md> --public|--private", file=sys.stderr)
+        return cmd_publish(args.md, mode=mode, series_id=args.series_id,
+                           keep_mermaid=args.keep_mermaid)
+    if args.cmd == "update":
+        return cmd_update(args.md, keep_mermaid=args.keep_mermaid)
+    if args.cmd == "visibility":
+        if args.public == args.private:
+            print("에러: --public 또는 --private 중 하나를 지정하세요", file=sys.stderr)
+            return 1
+        return cmd_visibility(args.md, public=args.public)
+    if args.cmd == "series":
+        return cmd_series(args.username)
+    ap.print_usage(sys.stderr)
     return 1
 
 

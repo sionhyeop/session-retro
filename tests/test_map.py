@@ -138,6 +138,29 @@ def test_render_html_shows_uncovered_and_coverage(tmp_path):
         assert not (("http://" in line or "https://" in line) and "velog.io" not in line and "xmlns" not in line)
 
 
+def test_parse_backlog(tmp_path):
+    retro = make_retro(tmp_path)
+    (retro / "plan.md").write_text(
+        "# 콘텐츠 백로그\n\n| 가제 | 훅(한 줄) | 근거 | 태그 |\n|---|---|---|---|\n"
+        "| pptx 개발기 | HTML 덱을 넘어 | v2 계획 | ClaudeCode |\n"
+        "| 소급 모드 실전기 | 583세션을 지도로 | web-template2 | 회고 |\n", encoding="utf-8")
+    items = bm.parse_backlog(retro)
+    assert len(items) == 2
+    assert items[0]["title"] == "pptx 개발기" and items[0]["hook"] == "HTML 덱을 넘어"
+    assert items[1]["basis"] == "web-template2"
+
+
+def test_backlog_renders_with_copy_bridge(tmp_path):
+    retro = make_retro(tmp_path)
+    backlog = [{"title": "pptx 개발기", "hook": "훅 문구", "basis": "v2", "tags": ""}]
+    html = bm.render_html([], [], bm.assets_summary(retro), "p", backlog=backlog)
+    assert "pptx 개발기" in html and "훅 문구" in html
+    assert 'data-cmd="' in html and "이어서" in html and "clipboard" in html  # 클릭→복사 브리지
+    assert "회고 스펙을 만들어줘" in html  # planned 단계의 다음 액션 지시문
+    nxt = bm.next_suggestion([], [], backlog)
+    assert nxt["kind"] == "backlog" and nxt["title"] == "pptx 개발기"
+
+
 def test_cli_writes_map(tmp_path):
     retro = make_retro(tmp_path)
     (retro / "specs" / "2026-07-10-auth.md").write_text(SPEC_MD, encoding="utf-8")

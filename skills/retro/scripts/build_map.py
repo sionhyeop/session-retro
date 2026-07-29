@@ -116,6 +116,27 @@ def collect(retro_dir):
     return episodes
 
 
+def parse_backlog(retro_dir):
+    """retro/plan.md 콘텐츠 백로그 — AI가 미리 스케치해둔 '앞으로 쓸 것들'.
+
+    형식: 마크다운 표 | 가제 | 훅(한 줄) | 근거 | 태그 | (우선순위 = 행 순서)"""
+    plan = Path(retro_dir) / "plan.md"
+    if not plan.is_file():
+        return []
+    items = []
+    for line in plan.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line.startswith("|") or re.match(r"^\|[\s:|-]+\|$", line):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2 or cells[0] in ("가제", ""):
+            continue
+        items.append({"title": cells[0], "hook": cells[1] if len(cells) > 1 else "",
+                      "basis": cells[2] if len(cells) > 2 else "",
+                      "tags": cells[3] if len(cells) > 3 else ""})
+    return items
+
+
 def collect_timeline(repo=".", session_paths=None):
     """활동일 타임라인 — 지도의 '영토'. 날짜별 {sessions, turns, errors, commits}."""
     paths = session_paths if session_paths is not None else default_session_files()
@@ -178,7 +199,20 @@ def uncovered_runs(days):
     return sorted(runs, key=weight, reverse=True)
 
 
-def next_suggestion(episodes, days=None):
+NEXT_ACTION = {
+    "planned": lambda t: f"'{t}' 에피소드의 회고 스펙을 만들어줘",
+    "spec": lambda t: f"'{t}' 스펙으로 velog 글 써줘",
+    "draft": lambda t: f"'{t}' 초안을 발행해줘",
+    "published_private": lambda t: f"'{t}' 공개로 바꿔줘",
+    "published_public": lambda t: f"'{t}' 글 업데이트해줘",
+}
+
+
+def next_suggestion(episodes, days=None, backlog=None):
+    if backlog:
+        b = backlog[0]
+        return {"kind": "backlog", "title": b["title"],
+                "detail": f"{b['hook']} (근거: {b['basis'] or '기획'})"}
     runs = uncovered_runs(days) if days else []
     if runs:
         run = runs[0]
@@ -194,11 +228,15 @@ def next_suggestion(episodes, days=None):
             "detail": f"현재 {STAGE_LABEL[ep['stage']][1]} — 다음 단계로 진행"}
 
 
-def render_html(episodes, days, assets, project_name):
+def render_html(episodes, days, assets, project_name, backlog=None):
+    backlog = backlog or []
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     cov = coverage(days)
-    nxt = next_suggestion(episodes, days)
+    nxt = next_suggestion(episodes, days, backlog)
     legend = " ".join(f"{d} {l}" for d, l in STAGE_LABEL.values())
+
+    def go_btn(cmd):
+        return f'<button class="go" data-cmd="{html.escape(cmd, quote=True)}">▶ 이어서</button>'
 
     # 타임라인 노드
     rows = []
@@ -212,7 +250,8 @@ def render_html(episodes, days, assets, project_name):
             tag = f'<span class="tag stage-{ep["stage"]}">{dot} {html.escape(ep["title"][:34])}</span>'
             cls = f"covered stage-{ep['stage']}"
         else:
-            tag = '<span class="tag uncovered-tag">⚪ 미작성 구간</span>'
+            tag = ('<span class="tag uncovered-tag">⚪ 미작성 구간</span> '
+                   + go_btn(f"{d['date']:%m-%d} 활동 구간의 회고를 써줘"))
             cls = "uncovered"
         rows.append(f"""
   <div class="node {cls}">
@@ -222,17 +261,29 @@ def render_html(episodes, days, assets, project_name):
     if not rows:
         rows.append('<p class="dim">활동 기록이 없습니다 — 세션이 쌓이면 지도가 그려집니다.</p>')
 
-    # 에피소드 요약 스트립
+    # 백로그 — 앞으로 쓸 것들 (AI가 미리 스케치한 기획)
+    plan_cards = []
+    for b in backlog:
+        plan_cards.append(f"""
+  <div class="plan-card">
+    <b>⚪ {html.escape(b['title'])}</b>
+    <span class="dim">{html.escape(b['hook'])}</span>
+    <span class="dim">근거: {html.escape(b['basis'] or '기획')}{' · ' + html.escape(b['tags']) if b['tags'] else ''}</span>
+    {go_btn(NEXT_ACTION['planned'](b['title']))}
+  </div>""")
+
+    # 에피소드 요약 스트립 (단계별 다음 액션 버튼 포함)
     chips = []
     for e in episodes:
         dot, label = STAGE_LABEL[e["stage"]][0], STAGE_LABEL[e["stage"]][1]
         gap = f" · ⚠️{len(e['gaps'])}" if e["gaps"] else ""
         link = f' <a href="{html.escape(e["url"])}">글</a>' if e["url"] else ""
-        chips.append(f'<span class="chip stage-{e["stage"]}">{dot} {html.escape(e["title"][:30])} <i>{label}{gap}</i>{link}</span>')
+        btn = go_btn(NEXT_ACTION[e["stage"]](e["title"]))
+        chips.append(f'<span class="chip stage-{e["stage"]}">{dot} {html.escape(e["title"][:30])} <i>{label}{gap}</i>{link} {btn}</span>')
 
     nxt_html = ""
     if nxt:
-        icon = "✍️ 다음 글감(미작성 구간)" if nxt["kind"] == "uncovered" else "▶ 다음 단계"
+        icon = {"backlog": "✍️ 다음 글감(기획)", "uncovered": "✍️ 다음 글감(미작성 구간)"}.get(nxt["kind"], "▶ 다음 단계")
         nxt_html = f'<p class="next"><b>{icon}:</b> {html.escape(nxt["title"])} <span class="dim">— {html.escape(nxt["detail"])}</span></p>'
 
     return f"""<!doctype html>
@@ -267,22 +318,53 @@ a {{ color:var(--accent); }}
 .node.uncovered .body {{ border-style:dashed; opacity:.85; }}
 .tag {{ display:inline-block; margin-top:6px; font-size:13px; border-radius:999px; padding:2px 12px; background:rgba(122,162,247,.12); }}
 .uncovered-tag {{ background:transparent; border:1px dashed var(--line); color:var(--dim); }}
+.plan-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }}
+.plan-card {{ background:var(--card); border:1px dashed var(--line); border-radius:12px; padding:12px 16px;
+  display:flex; flex-direction:column; gap:5px; font-size:14.5px; }}
+.go {{ align-self:flex-start; margin-top:4px; background:transparent; border:1px solid var(--accent);
+  color:var(--accent); border-radius:999px; padding:3px 14px; font-size:12.5px; cursor:pointer;
+  font-family:inherit; }}
+.go:hover {{ background:rgba(122,162,247,.15); }}
+.chip .go {{ margin:0 0 0 6px; }}
+#toast {{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--accent);
+  color:var(--bg); border-radius:999px; padding:9px 22px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; }}
 </style></head><body><main>
 <h1>콘텐츠 맵</h1>
-<p class="dim">{html.escape(project_name)} · 생성 {now} · 범례: {legend}</p>
+<p class="dim">{html.escape(project_name)} · 생성 {now} · 범례: {legend} · <b>▶ 이어서</b>를 누르면 다음 작업 지시문이 복사됩니다 — Claude Code에 붙여넣으세요</p>
 <div class="stats">
   <div><b>{cov['total']}</b><span>활동일</span></div>
   <div><b>{cov['covered_pct']}%</b><span>에피소드로 커버</span></div>
   <div><b>{cov['published_pct']}%</b><span>발행됨</span></div>
-  <div><b>{assets['inbox'] + assets['auto']}</b><span>보유 이미지</span></div>
+  <div><b>{len(backlog)}</b><span>기획 백로그</span></div>
 </div>
 {nxt_html}
+<h2>앞으로 쓸 것들 — 기획 백로그</h2>
+<div class="plan-grid">{''.join(plan_cards) or '<span class="dim">비어 있음 — "콘텐츠 기획해줘"라고 하면 AI가 넓게 스케치해 채웁니다 (retro/plan.md)</span>'}</div>
 <h2>에피소드</h2>
 <div class="chips">{''.join(chips) or '<span class="dim">아직 없음 — /retro로 시작</span>'}</div>
 <h2>전체 흐름 — 무엇을 썼고, 무엇이 비었나</h2>
 <div class="flow">{''.join(rows)}
 </div>
-<p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신 · 미작성 구간은 "이 구간 회고 써줘"로 채울 수 있습니다.</p>
+<p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신됩니다.</p>
+<div id="toast">복사됨 ✓ Claude Code에 붙여넣으세요</div>
+<script>
+  function copyText(t) {{
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
+    var ta = document.createElement("textarea");
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+    return Promise.resolve();
+  }}
+  document.addEventListener("click", function (e) {{
+    var btn = e.target.closest(".go");
+    if (!btn) return;
+    copyText(btn.dataset.cmd).then(function () {{
+      var toast = document.getElementById("toast");
+      toast.style.opacity = "1";
+      setTimeout(function () {{ toast.style.opacity = "0"; }}, 1600);
+    }});
+  }});
+</script>
 </main></body></html>"""
 
 
@@ -319,15 +401,16 @@ def main(argv=None):
         print(f"에러: retro 디렉토리 없음 — {retro}", file=sys.stderr)
         return 1
     episodes = collect(retro)
+    backlog = parse_backlog(retro)
     days = assign_days(collect_timeline(repo=args.repo), episodes)
-    text = render_html(episodes, days, assets_summary(retro), retro.resolve().parent.name)
+    text = render_html(episodes, days, assets_summary(retro), retro.resolve().parent.name, backlog=backlog)
     out = Path(args.out) if args.out else retro / "map.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
 
     cov = coverage(days)
     signature = "|".join(sorted(f"{e['slug'] or e['title']}:{e['stage']}" for e in episodes)) + \
-        f"#cov{cov['covered']}/{cov['total']}"
+        f"#cov{cov['covered']}/{cov['total']}#plan{len(backlog)}"
     state_file = retro / ".timeline" / "map-state.txt"
     prev = state_file.read_text(encoding="utf-8") if state_file.is_file() else None
     state_file.parent.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,8 @@
 
 *Turn your Claude Code sessions into retrospective blog posts (velog) and HTML slide decks — trial-and-error included, images auto-generated.*
 
+[![skills.sh](https://skills.sh/b/sionhyeop/session-retro)](https://skills.sh/sionhyeop/session-retro)
+
 ![session-retro 온보딩](docs/images/demo-landing.png)
 
 > 📖 **처음이라면 도식 가이드부터**: [`docs/index.html`](docs/index.html)을 브라우저에서 여세요
@@ -21,7 +23,12 @@ claude plugin install session-retro
 
 # 방법 B. 직접 설치
 git clone https://github.com/sionhyeop/session-retro && cd session-retro && bash install.sh
+
+# 방법 C. skills CLI — Claude Code 외에 Codex·Cursor 등 70+ 에이전트 지원
+npx skills add sionhyeop/session-retro
 ```
+
+> 방법 C는 스킬만 설치됩니다(자동 백업·넛지 훅 제외) — 훅까지 원하면 A 또는 B를 쓰세요.
 
 ② 그다음, 회고를 남기고 싶은 프로젝트의 Claude Code에서:
 

@@ -51,8 +51,13 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환해 퇴
    이름이 일치하는 시리즈의 id를 `--series-id`로 전달한다. 일치하는 게 없으면 목록을 보여주고
    선택받거나, 새 시리즈는 velog에서 만들도록 안내(생성 API 미지원). 첫 발행인데 config가
    비어 있으면 시리즈에 넣을지 한 번 묻고 선택을 config에 저장.
-2-3. **썸네일**: `retro/assets/inbox/`에 `cover.*` 파일이 있으면 frontmatter `thumbnail`로
-   지정한다(발행 시 CDN 업로드됨). 없으면 스크립트가 본문 첫 이미지를 자동 지정한다.
+2-3. **썸네일 자동 생성** (우선순위):
+   ① `retro/assets/inbox/`에 `cover.*` 파일이 있으면 그것을 frontmatter `thumbnail`로.
+   ② 없으면 **타이틀 카드를 자동 생성**한다 — `references/image-cards.md`의 G 절차:
+     config의 `thumbnail_style`(기본 gradient) 템플릿에 제목·태그·시리즈를 채워
+     `html_shot.py`로 1200×630 생성 → frontmatter `thumbnail`에 지정 (본문에는 넣지 않음).
+   ③ `thumbnail_style: off`면 스크립트가 본문 첫 이미지를 자동 지정한다.
+   frontmatter의 로컬 경로 썸네일은 발행 스크립트가 업로드해 CDN URL로 바꾼다.
 3. 업로드 실행 (기본 = 비공개 발행):
    `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md" [--series-id <id>]`
    - 사용자가 처음부터 공개를 요청한 경우에만 `--public`, 임시저장을 원하면 `--draft`.

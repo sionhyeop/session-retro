@@ -316,6 +316,23 @@ def first_image_url(md_text):
     return None
 
 
+def resolve_thumbnail(meta_thumb, md_dir, tokens, cache, new_body):
+    """썸네일 결정: frontmatter 값(로컬 경로면 업로드) → 없으면 본문 첫 이미지."""
+    if meta_thumb:
+        if meta_thumb.startswith(("http://", "https://")):
+            return meta_thumb
+        if meta_thumb in cache:
+            return cache[meta_thumb]
+        local = (Path(md_dir) / meta_thumb).resolve()
+        if local.is_file():
+            url = upload_image(local, tokens)
+            cache[meta_thumb] = url
+            print(f"썸네일 업로드됨: {meta_thumb} -> {url}")
+            return url
+        print(f"경고: 썸네일 파일 없음 — {meta_thumb}", file=sys.stderr)
+    return first_image_url(new_body)
+
+
 MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
 
 
@@ -391,7 +408,11 @@ def cmd_publish(md_path, mode="private", series_id=None, keep_mermaid=False):
     published = path.with_suffix(".published.md")
     published.write_text(f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
     print(f"이미지 {n}개 업로드, 치환본 저장: {published}")
-    thumbnail = meta.get("thumbnail") or first_image_url(new_body)
+    try:
+        thumbnail = resolve_thumbnail(meta.get("thumbnail"), path.parent, tokens, image_cache, new_body)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 3
     temp, private = {"draft": (True, False), "private": (False, True), "public": (False, False)}[mode]
     try:
         result = write_post(title, new_body, meta.get("tags", []), thumbnail, tokens,
@@ -480,7 +501,12 @@ def cmd_update(md_path, keep_mermaid=False, series_id=None):
         return 2 if "인증" in str(e) else 3
     path.with_suffix(".published.md").write_text(
         f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
-    thumbnail = meta.get("thumbnail") or first_image_url(new_body) or sidecar.get("thumbnail")
+    try:
+        thumbnail = (resolve_thumbnail(meta.get("thumbnail"), path.parent, tokens, image_cache, new_body)
+                     or sidecar.get("thumbnail"))
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 3
     visibility = sidecar.get("visibility", "private")
     effective_series = series_id or sidecar.get("series_id")
     try:

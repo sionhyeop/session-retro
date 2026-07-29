@@ -335,6 +335,26 @@ def test_cmd_publish_auto_thumbnail_and_series(home, tmp_path, monkeypatch):
     assert sidecar["series_id"] == "s-9"
 
 
+def test_local_thumbnail_uploaded_and_used(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(
+        "---\ntitle: 테스트 회고\ntags: [테스트]\nthumbnail: cover.png\n---\n\n본문", encoding="utf-8")
+    (tmp_path / "cover.png").write_bytes(b"img")
+    monkeypatch.setattr(vp, "upload_image", lambda p, t: f"https://velog.velcdn.com/u/{p.name}")
+    captured = {}
+
+    def fake_write(title, body, tags, thumbnail, tokens, temp=False, private=True, series_id=None):
+        captured["thumbnail"] = thumbnail
+        return {"id": "p", "url_slug": "s", "user": {"username": "u"}}
+
+    monkeypatch.setattr(vp, "write_post", fake_write)
+    assert vp.cmd_publish(str(md)) == 0
+    assert captured["thumbnail"] == "https://velog.velcdn.com/u/cover.png"
+    sidecar = json.loads(md.with_suffix(".velog.json").read_text(encoding="utf-8"))
+    assert sidecar["images"]["cover.png"] == "https://velog.velcdn.com/u/cover.png"  # 캐시됨
+
+
 def test_convert_mermaid_replaces_block(home, tmp_path, monkeypatch):
     monkeypatch.setattr(vp, "_http", lambda *a, **k: (200, [], b"\x89PNGfake"))
     monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/d.png")

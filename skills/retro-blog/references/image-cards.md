@@ -125,6 +125,51 @@ h1{font-size:30px;margin:0 0 22px}
 - 앱의 실제 CSS/컴포넌트가 저장소에 있으면 그대로 가져다 쓴다 — 재현도가 오리지널리티다.
 - 상호작용 결과(예: AI 응답)는 세션에 남은 실제 출력물을 붙여넣는다.
 
+## G. 타이틀 카드 — 썸네일 자동 생성 (API·비용 0)
+
+발행 전에 **제목·태그·시리즈로 타이틀 카드를 만들어 썸네일로 지정**한다. AI 이미지 생성 API가
+필요 없다 — 아래 템플릿에 값을 채워 `html_shot`으로 1200×630에 찍으면 끝. 스타일은
+`retro/config.md`의 `thumbnail_style`로 고정해 **블로그 목록의 디자인 일관성**을 지킨다.
+저장: `retro/assets/auto/<ts>-title-card.png` → frontmatter `thumbnail:`에 상대 경로로 지정
+(발행 스크립트가 업로드해 CDN URL로 바꿔준다). 본문에는 넣지 않는다(커버 전용).
+
+### 스타일 1: `gradient` (기본) — 다크 그래디언트 + 큰 타이포
+
+```html
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:linear-gradient(135deg,#111418 30%,#1b2340 70%,#2a3555);
+  min-height:100vh;display:flex;align-items:center;
+  font-family:-apple-system,"Segoe UI","Pretendard","Malgun Gothic",sans-serif}
+.wrap{padding:70px 80px;width:100%}
+.series{display:inline-block;color:#7aa2f7;border:1px solid #3d59a1;border-radius:999px;
+  padding:6px 18px;font-size:19px;margin-bottom:26px}
+h1{color:#e8eaed;font-size:58px;line-height:1.3;margin:0 0 30px;word-break:keep-all;max-width:1000px}
+.tags{color:#9aa0a6;font-size:21px}
+.tags b{color:#7aa2f7;margin-right:14px}
+</style></head><body><div class="wrap">
+<span class="series">개발 회고</span>
+<h1>제목이 들어갈 자리 — 두 줄까지 자연스럽게</h1>
+<p class="tags"><b>#ClaudeCode</b><b>#회고</b><b>#자동화</b></p>
+</div></body></html>
+```
+
+### 스타일 2: `terminal` — 터미널 프레임 감성
+
+코드 카드(A) 프레임을 재사용하되, pre 안에 `$ <제목 키워드>` + 커서(▌)와 태그 주석만 담는다.
+제목이 명령어처럼 보이는 개발 블로그 특화 스타일.
+
+### 스타일 3: `pattern` — 밝은 배경 + 그리드 패턴
+
+`background:#f7f8fa; background-image:radial-gradient(#c9d3e6 1.5px, transparent 1.5px);
+background-size:26px 26px;` 위에 어두운 타이포(#1b2027)와 컬러 포인트 한 가지. 라이트한 인상.
+
+### 공통 규칙
+
+- 크기 항상 **1200×630**. 제목이 28자를 넘으면 폰트를 48px로 줄이고, 40자 초과 시 핵심 구절만 발췌.
+- 시리즈 칩·태그는 config 값에서 자동으로. 날짜는 넣지 않는다(목록에 이미 표시됨).
+- 진짜 일러스트 배경을 원하면(선택): 외부 이미지 생성 API 키를 setup 방식으로 받아 배경만 생성하고
+  타이포는 위 템플릿으로 얹는 하이브리드가 가능하다 — 단, 스타일 일관성이 깨지기 쉬워 기본은 비추천.
+
 ## 슬롯을 채울 수 없을 때
 
 브라우저 밖 실물(IDE 화면, 실기기, 오프라인 현장)은 자동 생성 대상이 아니다 —

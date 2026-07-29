@@ -77,7 +77,7 @@
 
   <div class="cmds">
     <div class="cmd"><b>/retro</b><p>세션을 증류해 회고 스펙(retro/spec.md)을 만들거나 갱신. 세션 중간에 다시 부르면 체크포인트.</p></div>
-    <div class="cmd"><b>/retro-blog</b><p>스펙 → velog 글 초안 → 이미지 업로드 → <b>임시저장</b>까지 자동. 발행 버튼은 내가.</p></div>
+    <div class="cmd"><b>/retro-blog</b><p>스펙 → velog 글 → 이미지 업로드 → <b>비공개 발행</b>까지 자동. 공개는 내가 시킬 때만.</p></div>
     <div class="cmd"><b>/retro-ppt</b><p>스펙 → 단일 파일 HTML 발표 덱. ←/→로 넘기고 Ctrl+P로 PDF.</p></div>
   </div>
 
@@ -91,7 +91,7 @@
     <div class="arrow">원하는 형식으로, 몇 번이든</div>
     <div class="split">
       <div class="lane">
-        <div class="node"><b>/retro-blog</b><small>velog 글 + 이미지 CDN 업로드<br>→ 임시저장 + 미리보기 URL</small></div>
+        <div class="node"><b>/retro-blog</b><small>velog 글 + 이미지 CDN 업로드<br>→ 비공개 발행 + 글 주소 ("공개로 바꿔줘"로 전환)</small></div>
       </div>
       <div class="lane">
         <div class="node"><b>/retro-ppt</b><small>단일 파일 HTML 덱<br>→ 브라우저 발표 · 인쇄 → PDF</small></div>
@@ -105,7 +105,8 @@
     <tr><th>하고 싶은 것</th><th>Claude에게 이렇게</th><th>일어나는 일</th></tr>
     <tr><td>세션 정리</td><td>"지금까지 한 거 회고로 정리해줘"</td><td>retro/spec.md 생성, 이미지 배치 제안</td></tr>
     <tr><td>중간 저장</td><td>"체크포인트 찍어줘"</td><td>spec.md에 이후 진행분 병합</td></tr>
-    <tr><td>블로그 초안</td><td>"이거 velog에 올려줘"</td><td>글 작성 → 승인 → 임시저장 업로드</td></tr>
+    <tr><td>블로그</td><td>"이거 velog에 올려줘"</td><td>글 작성 → 승인 → <b>비공개 발행</b> 업로드</td></tr>
+    <tr><td>공개 전환</td><td>"공개로 바꿔줘"</td><td>비공개 글을 공개로 전환 (반대도 가능)</td></tr>
     <tr><td>발표 자료</td><td>"발표자료로 만들어줘"</td><td>에피소드 발표 또는 프로젝트 전체 발표(개요 기반)</td></tr>
     <tr><td><b>중간 도입</b></td><td>"이 프로젝트 지금까지 정리해줘"</td><td><b>소급 모드</b>: 세션×git 인벤토리 → 에피소드 분할 제안 → 블로그 여러 편 + 개요</td></tr>
   </table>
@@ -147,7 +148,7 @@
 
   <h2>안전 원칙</h2>
   <div class="principles">
-    <div class="pr ok"><b>초안까지만</b>velog엔 항상 임시저장으로만 올립니다. 공개 발행 버튼은 사람이 누릅니다.</div>
+    <div class="pr ok"><b>기본 비공개</b>발행해도 본인에게만 보입니다. 공개는 "공개로 바꿔줘"라고 명시할 때만.</div>
     <div class="pr ok"><b>글은 절대 안 사라짐</b>업로드가 실패해도 MD 파일이 로컬에 남아 에디터에 붙여넣으면 끝.</div>
     <div class="pr warn"><b>비공식 API</b>velog는 공식 API가 없어 내부 API를 씁니다. 깨질 수 있지만, 깨져도 위 폴백이 있습니다.</div>
     <div class="pr info"><b>훅은 무해</b>retro/ 있는 프로젝트에서만, 복사만, 실패해도 세션에 영향 0.</div>

@@ -16,11 +16,11 @@ bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은
 
 ```
 지금까지 한 거 회고로 정리해줘        ← /retro : retro/spec.md 생성
-이거 velog에 올려줘                  ← /retro-blog : 초안 작성 → 임시저장 업로드
+이거 velog에 올려줘                  ← /retro-blog : 초안 작성 → 비공개 발행 업로드
 발표자료로도 만들어줘                ← /retro-ppt : HTML 덱 생성
 ```
 
-③ 결과물 위치: `retro/out/blog/*.md` (velog 임시저장까지 업로드됨), `retro/out/ppt/*.html` (더블클릭 → 발표, Ctrl+P → PDF)
+③ 결과물 위치: `retro/out/blog/*.md` (velog에 **비공개로 발행**됨 — "공개로 바꿔줘" 하면 공개 전환), `retro/out/ppt/*.html` (더블클릭 → 발표, Ctrl+P → PDF)
 
 `/retro`를 한 번 실행해 `retro/` 폴더가 생긴 프로젝트는, 이후 세션 종료·컨텍스트 압축 시
 트랜스크립트가 `retro/archive/`에 **자동 백업**됩니다 (opt-in 방식 — 다른 프로젝트는 건드리지 않음).
@@ -33,7 +33,8 @@ bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은
 |---|---|---|
 | 세션 정리 | "회고 정리해줘" / `/retro` | `retro/spec.md` 생성·갱신 + 이미지 배치 제안 |
 | 중간 저장 | "체크포인트 찍어줘" | spec에 이후 진행분 병합 (실시간 중간 정리) |
-| 블로그 | "velog에 올려줘" / `/retro-blog` | 초안 작성 → 승인 → 이미지 CDN 업로드 → **임시저장** |
+| 블로그 | "velog에 올려줘" / `/retro-blog` | 초안 작성 → 승인 → 이미지 CDN 업로드 → **비공개 발행** |
+| 공개 전환 | "공개로 바꿔줘" | 비공개로 발행된 글을 공개로 전환 ("비공개로 돌려줘"도 가능) |
 | 발표 자료 | "발표자료 만들어줘" / `/retro-ppt` | 에피소드 발표 또는 overview 기반 프로젝트 전체 발표 |
 | **중간 도입** | "이 프로젝트 지금까지 정리해줘" | **소급 모드**: 세션×git 인벤토리 → 에피소드(주제 단위) 분할 제안 → 블로그 여러 편 + 개요 |
 
@@ -44,7 +45,7 @@ bash install.sh   # ① 스킬 3개 연결 + 백업 훅 등록 (기존 설정은
 세션 시작 시 ─(SessionStart 넛지 훅)→ 재료가 쌓이면 Claude가 먼저 회고 제안
 /retro       : 파싱·증류 → retro/specs/<에피소드>.md (블로그 1편 = 스펙 1개)
                           + retro/overview.md (온보딩용 개요: 결정·지뢰밭·목차)
-/retro-blog  : 스펙 선택 → velog MD → 이미지 CDN 업로드 → 임시저장 업로드
+/retro-blog  : 스펙 선택 → velog MD → 이미지 CDN 업로드 → 비공개 발행 (공개는 명시 요청 시)
 /retro-ppt   : 에피소드 발표 or overview 기반 전체 발표 → 단일 파일 HTML 덱
 ```
 
@@ -71,8 +72,8 @@ python3 skills/retro-blog/scripts/velog_publish.py setup
 ```
 
 `~/.config/velog-retro/tokens.json`(0600)에 저장됩니다. **비공식 API**라 언제든 깨질 수 있지만,
-깨져도 MD 파일 폴백으로 항상 글을 건질 수 있습니다. 업로드는 항상 임시저장(초안)까지만 —
-공개 발행은 velog에서 직접 누릅니다.
+깨져도 MD 파일 폴백으로 항상 글을 건질 수 있습니다. 업로드 기본값은 **비공개 발행**(본인만 보임) —
+공개는 "공개로 바꿔줘"라고 명시적으로 요청할 때만 전환됩니다.
 
 ## 권장 설정
 

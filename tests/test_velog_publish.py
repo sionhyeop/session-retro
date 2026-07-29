@@ -94,7 +94,7 @@ def test_parse_frontmatter_missing_title():
     assert "title" not in meta
 
 
-def test_write_post_draft_payload(home, monkeypatch):
+def test_write_post_draft_mode_payload(home, monkeypatch):
     captured = {}
 
     def fake_http(url, method="GET", headers=None, data=None):
@@ -102,7 +102,8 @@ def test_write_post_draft_payload(home, monkeypatch):
         return 200, [], json.dumps({"data": {"writePost": {"id": "p-1", "url_slug": "slug"}}}).encode()
 
     monkeypatch.setattr(vp, "_http", fake_http)
-    result = vp.write_post_draft("제목", "본문", ["a"], None, {"access_token": "a", "refresh_token": "r"})
+    result = vp.write_post("제목", "본문", ["a"], None, {"access_token": "a", "refresh_token": "r"},
+                           temp=True, private=False)
     assert result["id"] == "p-1"
     assert captured["url"] == vp.GRAPHQL_URL
     inp = captured["data"]["variables"]["input"]
@@ -111,13 +112,41 @@ def test_write_post_draft_payload(home, monkeypatch):
     assert inp["meta"] == {}  # 레퍼런스 구현(velog-mcp) 확인 결과 필수 필드
 
 
+def test_write_post_default_is_private_publish(home, monkeypatch):
+    captured = {}
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        captured["data"] = json.loads(data)
+        return 200, [], json.dumps({"data": {"writePost": {"id": "p", "url_slug": "s"}}}).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    vp.write_post("t", "b", [], None, {"access_token": "a"})
+    inp = captured["data"]["variables"]["input"]
+    assert inp["is_temp"] is False and inp["is_private"] is True  # 기본값 = 비공개 발행
+
+
 def test_write_post_graphql_error_raises(home, monkeypatch):
     monkeypatch.setattr(
         vp, "_http",
         lambda *a, **k: (200, [], json.dumps({"errors": [{"message": "nope"}]}).encode()),
     )
     with pytest.raises(vp.VelogError):
-        vp.write_post_draft("t", "b", [], None, {"access_token": "a"})
+        vp.write_post("t", "b", [], None, {"access_token": "a"})
+
+
+def test_edit_post_payload(home, monkeypatch):
+    captured = {}
+
+    def fake_http(url, method="GET", headers=None, data=None):
+        captured["data"] = json.loads(data)
+        return 200, [], json.dumps({"data": {"editPost": {"id": "p-1", "url_slug": "s"}}}).encode()
+
+    monkeypatch.setattr(vp, "_http", fake_http)
+    vp.edit_post("p-1", "제목", "본문", ["a"], None, "slug",
+                 {"access_token": "a"}, private=False)
+    inp = captured["data"]["variables"]["input"]
+    assert inp["id"] == "p-1" and inp["is_private"] is False and inp["is_temp"] is False
+    assert inp["url_slug"] == "slug" and inp["meta"] == {}
 
 
 def test_token_rotation_persisted(home, monkeypatch):
@@ -130,11 +159,11 @@ def test_token_rotation_persisted(home, monkeypatch):
 
     monkeypatch.setattr(vp, "_http", fake_http)
     tokens = vp.load_tokens()
-    vp.write_post_draft("t", "b", [], None, tokens)
+    vp.write_post("t", "b", [], None, tokens)
     assert vp.load_tokens()["access_token"] == "new"
 
 
-def test_cmd_publish_end_to_end(home, tmp_path, monkeypatch):
+def test_cmd_publish_end_to_end_writes_sidecar(home, tmp_path, monkeypatch):
     blog = tmp_path / "out" / "blog"
     blog.mkdir(parents=True)
     (blog / "post.md").write_text(MD, encoding="utf-8")
@@ -143,11 +172,65 @@ def test_cmd_publish_end_to_end(home, tmp_path, monkeypatch):
     (assets / "a.png").write_bytes(b"img")
     vp.save_tokens({"access_token": "a", "refresh_token": "r"})
     monkeypatch.setattr(vp, "upload_image", lambda p, t: "https://velog.velcdn.com/u/a.png")
-    monkeypatch.setattr(vp, "write_post_draft", lambda *a, **k: {"id": "p-9", "url_slug": "s"})
+    monkeypatch.setattr(
+        vp, "write_post",
+        lambda *a, **k: {"id": "p-9", "url_slug": "s", "user": {"username": "mico"}},
+    )
     rc = vp.cmd_publish(str(blog / "post.md"))
     assert rc == 0
     published = (blog / "post.published.md").read_text(encoding="utf-8")
     assert "velcdn.com" in published
+    sidecar = json.loads((blog / "post.velog.json").read_text(encoding="utf-8"))
+    assert sidecar["id"] == "p-9" and sidecar["visibility"] == "private"
+    assert sidecar["username"] == "mico"
+
+
+def test_cmd_publish_mode_flags(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD.replace("![스크린샷](assets/a.png)", ""), encoding="utf-8")
+    captured = {}
+
+    def fake_write(title, body, tags, thumbnail, tokens, temp=False, private=True):
+        captured.update(temp=temp, private=private)
+        return {"id": "p", "url_slug": "s", "user": {"username": "u"}}
+
+    monkeypatch.setattr(vp, "write_post", fake_write)
+    assert vp.cmd_publish(str(md)) == 0
+    assert captured == {"temp": False, "private": True}   # 기본 = 비공개 발행
+    assert vp.cmd_publish(str(md), mode="public") == 0
+    assert captured == {"temp": False, "private": False}
+    assert vp.cmd_publish(str(md), mode="draft") == 0
+    assert captured == {"temp": True, "private": False}
+
+
+def test_cmd_visibility_public(home, tmp_path, monkeypatch):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD, encoding="utf-8")
+    (tmp_path / "p.published.md").write_text("---\ntitle: 테스트 회고\n---\n\n본문", encoding="utf-8")
+    (tmp_path / "p.velog.json").write_text(json.dumps({
+        "id": "p-1", "url_slug": "s", "username": "u", "title": "테스트 회고",
+        "tags": ["테스트"], "thumbnail": None, "visibility": "private",
+    }), encoding="utf-8")
+    captured = {}
+
+    def fake_edit(post_id, title, body, tags, thumbnail, url_slug, tokens, temp=False, private=True):
+        captured.update(post_id=post_id, private=private, title=title)
+        return {"id": post_id, "url_slug": url_slug}
+
+    monkeypatch.setattr(vp, "edit_post", fake_edit)
+    assert vp.cmd_visibility(str(md), public=True) == 0
+    assert captured["post_id"] == "p-1" and captured["private"] is False
+    sidecar = json.loads((tmp_path / "p.velog.json").read_text(encoding="utf-8"))
+    assert sidecar["visibility"] == "public"
+
+
+def test_cmd_visibility_missing_sidecar_exit_5(home, tmp_path):
+    vp.save_tokens({"access_token": "a", "refresh_token": "r"})
+    md = tmp_path / "p.md"
+    md.write_text(MD, encoding="utf-8")
+    assert vp.cmd_visibility(str(md), public=True) == 5
 
 
 def test_cmd_publish_without_tokens_exit_2(home, tmp_path):
@@ -171,5 +254,5 @@ def test_cmd_publish_auth_error_exit_2(home, tmp_path, monkeypatch):
     def raise_auth(*a, **k):
         raise vp.VelogError("인증 실패(401) — 토큰 만료 가능성. setup을 다시 실행하세요.")
 
-    monkeypatch.setattr(vp, "write_post_draft", raise_auth)
+    monkeypatch.setattr(vp, "write_post", raise_auth)
     assert vp.cmd_publish(str(md)) == 2

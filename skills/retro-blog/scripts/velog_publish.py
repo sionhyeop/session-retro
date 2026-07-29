@@ -3,10 +3,11 @@
 
 - 공식 API가 없어 velog 내부 GraphQL/REST를 사용한다. 언제든 깨질 수 있으며,
   깨지면 호출측(retro-blog 스킬)이 'MD 붙여넣기' 폴백으로 안내한다.
-- 항상 is_temp(임시저장) 전용. 공개 발행은 지원하지 않는다.
+- 기본값은 **비공개 발행**(is_private=true, 본인만 보임). 공개는 --public 명시 시에만.
+  --draft로 임시저장도 가능. visibility 명령으로 발행 후 공개↔비공개 전환.
 - 토큰은 ~/.config/velog-retro/tokens.json(0600). 로그·에러에 절대 노출 금지.
 - 표준 라이브러리만 사용.
-종료 코드: 0 성공 / 2 토큰 없음·만료 / 3 이미지 업로드 실패 / 4 GraphQL 실패 / 5 MD 형식 오류
+종료 코드: 0 성공 / 2 토큰 없음·만료 / 3 이미지 업로드 실패 / 4 GraphQL 실패 / 5 MD 형식·발행기록 오류
 """
 import json
 import mimetypes
@@ -158,6 +159,40 @@ mutation WritePost($input: WritePostInput!) {
 }
 """.strip()
 
+EDIT_POST_MUTATION = """
+mutation EditPost($input: EditPostInput!) {
+  editPost(input: $input) {
+    id
+    url_slug
+    user {
+      id
+      username
+    }
+  }
+}
+""".strip()
+
+
+def _graphql(operation_name, query, input_dict, tokens):
+    """GraphQL mutation 공통 실행기. data 딕셔너리 반환."""
+    payload = {"operationName": operation_name, "query": query, "variables": {"input": input_dict}}
+    status, resp_headers, resp_body = _http(
+        GRAPHQL_URL, method="POST",
+        headers={"Content-Type": "application/json", "Cookie": cookie_header(tokens)},
+        data=json.dumps(payload).encode(),
+    )
+    rotate_tokens(resp_headers, tokens)
+    if status in (401, 403):
+        raise VelogError(f"인증 실패({status}) — 토큰 만료 가능성. setup을 다시 실행하세요.")
+    try:
+        parsed = json.loads(resp_body)
+    except json.JSONDecodeError:
+        raise VelogError(f"GraphQL 응답 해석 실패(HTTP {status})")
+    if status != 200 or parsed.get("errors"):
+        msg = (parsed.get("errors") or [{}])[0].get("message", f"HTTP {status}")
+        raise VelogError(f"{operation_name} 실패: {msg}")
+    return parsed["data"]
+
 
 def parse_frontmatter(md_text):
     """단순 YAML frontmatter 파서(외부 의존 없이 title/tags/thumbnail만 지원)."""
@@ -180,36 +215,37 @@ def parse_frontmatter(md_text):
     return meta, body.lstrip("\n")
 
 
-def write_post_draft(title, body, tags, thumbnail, tokens):
-    payload = {
-        "operationName": "WritePost",
-        "query": WRITE_POST_MUTATION,
-        "variables": {"input": {
-            "title": title, "body": body, "tags": tags,
-            "is_markdown": True, "is_temp": True, "is_private": False,
-            "url_slug": "", "meta": {}, "thumbnail": thumbnail,
-            "series_id": None, "token": None,
-        }},
-    }
-    status, resp_headers, resp_body = _http(
-        GRAPHQL_URL, method="POST",
-        headers={"Content-Type": "application/json", "Cookie": cookie_header(tokens)},
-        data=json.dumps(payload).encode(),
-    )
-    rotate_tokens(resp_headers, tokens)
-    if status in (401, 403):
-        raise VelogError(f"인증 실패({status}) — 토큰 만료 가능성. setup을 다시 실행하세요.")
-    try:
-        parsed = json.loads(resp_body)
-    except json.JSONDecodeError:
-        raise VelogError(f"GraphQL 응답 해석 실패(HTTP {status})")
-    if status != 200 or parsed.get("errors"):
-        msg = (parsed.get("errors") or [{}])[0].get("message", f"HTTP {status}")
-        raise VelogError(f"WritePost 실패: {msg}")
-    return parsed["data"]["writePost"]
+def write_post(title, body, tags, thumbnail, tokens, temp=False, private=True):
+    """기본값 = 비공개 발행(is_private). temp=True면 임시저장."""
+    data = _graphql("WritePost", WRITE_POST_MUTATION, {
+        "title": title, "body": body, "tags": tags,
+        "is_markdown": True, "is_temp": temp, "is_private": private,
+        "url_slug": "", "meta": {}, "thumbnail": thumbnail,
+        "series_id": None, "token": None,
+    }, tokens)
+    return data["writePost"]
 
 
-def cmd_publish(md_path, draft=True):
+def edit_post(post_id, title, body, tags, thumbnail, url_slug, tokens, temp=False, private=True):
+    data = _graphql("EditPost", EDIT_POST_MUTATION, {
+        "id": post_id, "title": title, "body": body, "tags": tags,
+        "is_markdown": True, "is_temp": temp, "is_private": private,
+        "url_slug": url_slug or "", "meta": {}, "thumbnail": thumbnail,
+        "series_id": None, "token": None,
+    }, tokens)
+    return data["editPost"]
+
+
+def _sidecar_path(path):
+    return path.with_suffix(".velog.json")
+
+
+def _post_url(username, url_slug):
+    return f"https://velog.io/@{username}/{url_slug}" if username and url_slug else "https://velog.io/saves"
+
+
+def cmd_publish(md_path, mode="private"):
+    """mode: private(기본, 비공개 발행) | public(공개 발행) | draft(임시저장)"""
     path = Path(md_path)
     if not path.is_file():
         print(f"에러: MD 파일 없음 — {path}", file=sys.stderr)
@@ -231,15 +267,63 @@ def cmd_publish(md_path, draft=True):
     published = path.with_suffix(".published.md")
     published.write_text(f"---\ntitle: {title}\n---\n\n{new_body}", encoding="utf-8")
     print(f"이미지 {n}개 업로드, 치환본 저장: {published}")
+    temp, private = {"draft": (True, False), "private": (False, True), "public": (False, False)}[mode]
     try:
-        result = write_post_draft(title, new_body, meta.get("tags", []), meta.get("thumbnail"), tokens)
+        result = write_post(title, new_body, meta.get("tags", []), meta.get("thumbnail"), tokens,
+                            temp=temp, private=private)
     except VelogError as e:
         print(f"에러: {e}", file=sys.stderr)
         return 2 if "인증" in str(e) else 4
-    print("임시저장(초안) 업로드 완료 ✅")
-    print("- 확인: https://velog.io/saves")
-    print(f"- 편집: https://velog.io/write?id={result['id']}")
-    print("- 공개 발행은 velog에서 직접 눌러주세요.")
+    username = (result.get("user") or {}).get("username", "")
+    _sidecar_path(path).write_text(json.dumps({
+        "id": result["id"], "url_slug": result.get("url_slug", ""), "username": username,
+        "title": title, "tags": meta.get("tags", []), "thumbnail": meta.get("thumbnail"),
+        "visibility": mode,
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    if mode == "draft":
+        print("임시저장(초안) 업로드 완료 ✅")
+        print("- 확인: https://velog.io/saves")
+        print(f"- 편집: https://velog.io/write?id={result['id']}")
+    elif mode == "private":
+        print("비공개로 발행 완료 ✅ (본인에게만 보입니다)")
+        print(f"- 글 주소: {_post_url(username, result.get('url_slug'))}")
+        print("- 공개로 전환: visibility 명령 (또는 Claude에게 '공개로 바꿔줘')")
+    else:
+        print("공개 발행 완료 ✅")
+        print(f"- 글 주소: {_post_url(username, result.get('url_slug'))}")
+    return 0
+
+
+def cmd_visibility(md_path, public):
+    """이미 발행된 글의 공개/비공개 전환. 로컬 치환본 내용으로 EditPost를 보낸다."""
+    path = Path(md_path)
+    sidecar_file = _sidecar_path(path)
+    if not sidecar_file.is_file():
+        print(f"에러: 발행 기록({sidecar_file.name})이 없습니다. 먼저 publish 하세요.", file=sys.stderr)
+        return 5
+    tokens = load_tokens()
+    if not tokens or not tokens.get("access_token"):
+        print("에러: 토큰 없음. 먼저 setup을 실행하세요.", file=sys.stderr)
+        return 2
+    sidecar = json.loads(sidecar_file.read_text(encoding="utf-8"))
+    source = path.with_suffix(".published.md")
+    if not source.is_file():
+        source = path
+    _, body = parse_frontmatter(source.read_text(encoding="utf-8"))
+    try:
+        edit_post(sidecar["id"], sidecar["title"], body, sidecar.get("tags", []),
+                  sidecar.get("thumbnail"), sidecar.get("url_slug", ""), tokens,
+                  temp=False, private=not public)
+    except VelogError as e:
+        print(f"에러: {e}", file=sys.stderr)
+        return 2 if "인증" in str(e) else 4
+    sidecar["visibility"] = "public" if public else "private"
+    sidecar_file.write_text(json.dumps(sidecar, ensure_ascii=False, indent=2), encoding="utf-8")
+    state = "공개" if public else "비공개"
+    print(f"{state}로 전환 완료 ✅")
+    print(f"- 글 주소: {_post_url(sidecar.get('username', ''), sidecar.get('url_slug', ''))}")
+    if not public:
+        print("- 이제 본인에게만 보입니다.")
     return 0
 
 
@@ -248,8 +332,18 @@ def main(argv=None):
     if argv[:1] == ["setup"]:
         return cmd_setup()
     if argv[:1] == ["publish"] and len(argv) >= 2:
-        return cmd_publish(argv[1], draft="--draft" in argv)
-    print("사용법: velog_publish.py setup | publish <md파일> --draft", file=sys.stderr)
+        mode = "private"  # 기본값: 비공개 발행 — 공개는 명시적으로만
+        if "--draft" in argv:
+            mode = "draft"
+        if "--public" in argv:
+            mode = "public"
+        return cmd_publish(argv[1], mode=mode)
+    if argv[:1] == ["visibility"] and len(argv) >= 3:
+        if "--public" in argv:
+            return cmd_visibility(argv[1], public=True)
+        if "--private" in argv:
+            return cmd_visibility(argv[1], public=False)
+    print("사용법: velog_publish.py setup | publish <md> [--draft|--private|--public] | visibility <md> --public|--private", file=sys.stderr)
     return 1
 
 

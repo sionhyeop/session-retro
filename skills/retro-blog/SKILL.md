@@ -1,6 +1,6 @@
 ---
 name: retro-blog
-description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 임시저장(초안) 업로드까지 수행한다. "블로그로 내보내", "velog에 올려줘", "회고 글 써줘" 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
+description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 비공개 발행까지 수행한다(공개는 명시 요청 시만 — "공개로 바꿔줘"로 전환). "블로그로 내보내", "velog에 올려줘", "회고 글 써줘", "공개로/비공개로 바꿔줘" 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
 ---
 
 # retro-blog — 회고 스펙 → velog 초안
@@ -9,7 +9,8 @@ description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 
 
 - 회고 스펙(`retro/specs/*.md`, 구버전은 `retro/spec.md`)이 하나도 없으면:
   "먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
-- 업로드는 항상 **임시저장(초안)** 까지만. 공개 발행 버튼은 사용자가 직접 누른다.
+- 업로드 기본값은 **비공개 발행**(본인만 보임). **공개는 사용자가 명시적으로 요청할 때만**
+  (`--public` 또는 발행 후 전환). 임시저장을 원하면 `--draft`.
 
 ## 절차
 
@@ -22,9 +23,18 @@ description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 
    - frontmatter: `title`(필수), `tags`(3~5개 리스트), `thumbnail`(선택)
    - 이미지는 **MD 파일 기준 상대 경로**로 적는다: `../../assets/auto/….png`
 2. 초안 전문을 사용자에게 보여주고 승인받는다. 수정 요청은 반영 후 재확인.
-3. 업로드 실행:
-   `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md" --draft`
-4. 성공(종료 코드 0): 출력된 확인 URL(https://velog.io/saves)과 편집 URL을 사용자에게 전달.
+3. 업로드 실행 (기본 = 비공개 발행):
+   `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md"`
+   - 사용자가 처음부터 공개를 요청한 경우에만 `--public`, 임시저장을 원하면 `--draft`.
+4. 성공(종료 코드 0): 출력된 글 주소를 전달하고, 비공개 상태이며 "공개로 바꿔줘"라고 하면
+   전환해줄 수 있음을 안내한다. 발행 기록은 `<파일>.velog.json` 사이드카에 저장된다.
+
+## 공개/비공개 전환
+
+사용자가 "공개로 바꿔줘"(또는 "다시 비공개로") 요청하면:
+`python3 "<skill-dir>/scripts/velog_publish.py" visibility "retro/out/blog/<파일>.md" --public` (또는 `--private`)
+- 주의: 전환은 로컬 치환본(`*.published.md`) 내용으로 글을 다시 쓴다. **사용자가 velog 웹에서
+  글을 직접 수정한 뒤라면** 덮어쓰지 말고 velog 화면의 공개 설정을 쓰도록 안내한다.
 5. 실패 폴백(종료 코드별):
    - **2 (토큰 없음/만료)**: 아래 "최초 설정"을 안내하고, 완료되면 3번부터 재시도.
    - **3/4/5 (업로드·API·형식 실패)**: "MD 파일이 `retro/out/blog/`에 있으니 velog 에디터에
@@ -42,4 +52,5 @@ description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 
 ## 주의
 
 - velog 비공식 API 사용 — 언제든 변경될 수 있다. 실패해도 MD 폴백이 항상 존재한다.
+- **공개 발행은 사용자의 명시적 요청 없이는 절대 하지 않는다** (기본은 비공개).
 - 토큰을 로그·대화·커밋에 절대 노출하지 않는다.

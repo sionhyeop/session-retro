@@ -7,12 +7,17 @@ description: retro/spec.md 회고 스펙을 velog 블로그 글로 변환하고 
 
 ## 전제
 
-- `retro/spec.md`가 없으면: "먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
+- 회고 스펙(`retro/specs/*.md`, 구버전은 `retro/spec.md`)이 하나도 없으면:
+  "먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
 - 업로드는 항상 **임시저장(초안)** 까지만. 공개 발행 버튼은 사용자가 직접 누른다.
 
 ## 절차
 
-1. `retro/spec.md`를 Read → `references/velog-style.md` 가이드에 따라 글을 작성해
+0. **스펙 선택**: `ls -t retro/specs/*.md` — 여러 개면 제목·갱신일 목록을 보여주고 고르게 한다
+   (기본: 최근 갱신). 1개뿐이거나 사용자가 이미 지정했으면 바로 진행.
+   부작 스펙(`-part1`, `-part2`)은 부별로 각각 글을 만들고 velog 시리즈명을 제안한다
+   (시리즈 등록 자체는 velog에서 직접 — API 연동은 v2).
+1. 선택한 스펙을 Read → `references/velog-style.md` 가이드에 따라 글을 작성해
    `retro/out/blog/YYYY-MM-DD-<slug>.md`로 저장한다.
    - frontmatter: `title`(필수), `tags`(3~5개 리스트), `thumbnail`(선택)
    - 이미지는 **MD 파일 기준 상대 경로**로 적는다: `../../assets/auto/….png`

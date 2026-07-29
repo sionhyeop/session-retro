@@ -7,11 +7,17 @@ description: retro/spec.md 회고 스펙을 발표용 단일 파일 HTML 슬라�
 
 ## 전제
 
-`retro/spec.md`가 없으면 "먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
+회고 스펙(`retro/specs/*.md`, 구버전은 `retro/spec.md`)이 하나도 없으면
+"먼저 /retro로 회고 스펙을 만들어야 해요"라고 안내하고 중단.
 
 ## 절차
 
-1. `retro/spec.md`를 Read → `references/deck-guide.md`의 서사 구조로 슬라이드를 설계한다.
+0. **발표 대상 선택** — 두 가지 중 확인:
+   - **에피소드 발표**: `retro/specs/`에서 스펙 1개 선택(기본: 최근 갱신) → 해당 에피소드의
+     문제→시도→해결 서사로 덱 구성.
+   - **프로젝트 전체 발표**: `retro/overview.md` 기반 — 개요 → 에피소드별 하이라이트(각 1~2장)
+     → 지뢰밭 지도 → 다음 단계 순서로 구성.
+1. 선택한 스펙(또는 overview)을 Read → `references/deck-guide.md`의 서사 구조로 슬라이드를 설계한다.
 2. `assets/deck-template.html`을 Read → `<!-- SLIDES:START -->` ~ `<!-- SLIDES:END -->` 사이를
    설계한 슬라이드로 교체해 `retro/out/ppt/YYYY-MM-DD-<slug>.html`로 저장한다.
    - 템플릿의 슬라이드 타입 클래스만 사용: slide-title / slide-section / slide-content /

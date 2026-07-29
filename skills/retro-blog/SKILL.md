@@ -1,6 +1,6 @@
 ---
 name: retro-blog
-description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 이미지 CDN 업로드 + 비공개 발행까지 수행한다(공개는 명시 요청 시만 — "공개로 바꿔줘"로 전환). "블로그로 내보내", "velog에 올려줘", "회고 글 써줘", "공개로/비공개로 바꿔줘", "말투 학습해줘"(내 velog 글에서 문체 프로필 증류) 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
+description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환해 퇴고 게이트를 거쳐 비공개 발행까지 수행한다(공개는 명시 요청 시만). 이미지·mermaid 다이어그램 CDN 업로드, 썸네일·시리즈 자동 처리. "velog에 올려줘", "회고 글 써줘", "글 업데이트해줘"(발행 후 수정), "공개로/비공개로 바꿔줘", "말투 학습해줘" 요청 시 사용. 스펙이 없으면 먼저 retro 스킬을 실행한다.
 ---
 
 # retro-blog — 회고 스펙 → velog 초안
@@ -31,9 +31,19 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
    - frontmatter: `title`(필수), `tags`(3~5개 리스트), `thumbnail`(선택)
    - 이미지는 **MD 파일 기준 상대 경로**로 적는다: `../../assets/auto/….png`
 2. 초안 전문을 사용자에게 보여주고 승인받는다. 수정 요청은 반영 후 재확인.
+2-1. **퇴고 게이트**: `references/quality-gate.md` 체크리스트로 점검·수정하고 통과 요약을 보고한다.
+2-2. **시리즈**: config의 `series`가 있으면
+   `python3 "<skill-dir>/scripts/velog_publish.py" series <username>` 으로 목록을 조회해
+   이름이 일치하는 시리즈의 id를 `--series-id`로 전달한다. 일치하는 게 없으면 목록을 보여주고
+   선택받거나, 새 시리즈는 velog에서 만들도록 안내(생성 API 미지원). 첫 발행인데 config가
+   비어 있으면 시리즈에 넣을지 한 번 묻고 선택을 config에 저장.
+2-3. **썸네일**: `retro/assets/inbox/`에 `cover.*` 파일이 있으면 frontmatter `thumbnail`로
+   지정한다(발행 시 CDN 업로드됨). 없으면 스크립트가 본문 첫 이미지를 자동 지정한다.
 3. 업로드 실행 (기본 = 비공개 발행):
-   `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md"`
+   `python3 "<skill-dir>/scripts/velog_publish.py" publish "retro/out/blog/<파일>.md" [--series-id <id>]`
    - 사용자가 처음부터 공개를 요청한 경우에만 `--public`, 임시저장을 원하면 `--draft`.
+   - 본문의 mermaid 코드블록은 자동으로 이미지(kroki→CDN)로 변환된다. 변환 실패 경고가
+     나오면 사용자에게 전달(코드블록은 그대로 유지되므로 글이 깨지진 않음).
 4. 성공(종료 코드 0): 출력된 글 주소를 전달하고, 비공개 상태이며 "공개로 바꿔줘"라고 하면
    전환해줄 수 있음을 안내한다. 발행 기록은 `<파일>.velog.json` 사이드카에 저장된다.
    마지막으로 콘텐츠 맵을 재생성한다:
@@ -53,6 +63,14 @@ description: 회고 스펙(retro/specs/)을 velog 블로그 글로 변환하고 
 4. `~/.config/velog-retro/style.md`로 저장(계정 단위 — 모든 프로젝트에 적용됨) 후
    프로필 요약을 사용자에게 보여주고 어색한 규칙은 수정받는다.
 5. 이후 글 작성 시 절차 0에서 자동 반영된다. 갱신하고 싶으면 다시 "말투 학습해줘".
+
+## 발행 후 수정 (사용자가 "글 고쳐줘/업데이트해줘" 요청 시)
+
+1. 스펙 또는 초안 MD를 수정하고 사용자 확인을 받는다 (퇴고 게이트 재적용).
+2. `python3 "<skill-dir>/scripts/velog_publish.py" update "retro/out/blog/<파일>.md"`
+   — 발행 기록(사이드카)의 글을 새 내용으로 갱신한다. 공개 상태·시리즈는 그대로 유지된다.
+3. 주의: **사용자가 velog 웹에서 글을 직접 수정한 뒤라면** 로컬 내용으로 덮어써도 되는지
+   먼저 확인한다.
 
 ## 공개/비공개 전환
 

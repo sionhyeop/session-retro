@@ -244,9 +244,10 @@ def edit_post(post_id, title, body, tags, thumbnail, url_slug, tokens,
     return data["editPost"]
 
 
+# 2026-07-29 실서버 프로브로 확정 — v2는 seriesList (레퍼런스의 userSeriesList는 낡은 스키마)
 SERIES_QUERY = """
-query UserSeriesList($username: String!) {
-  userSeriesList(username: $username) {
+query SeriesList($username: String!) {
+  seriesList(username: $username) {
     id
     name
     url_slug
@@ -270,7 +271,7 @@ def fetch_series(username):
     if status != 200 or parsed.get("errors"):
         msg = (parsed.get("errors") or [{}])[0].get("message", f"HTTP {status}")
         raise VelogError(f"시리즈 조회 실패: {msg}")
-    return parsed["data"]["userSeriesList"] or []
+    return parsed["data"]["seriesList"] or []
 
 
 def cmd_series(username):

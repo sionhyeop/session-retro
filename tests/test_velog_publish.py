@@ -258,7 +258,7 @@ def test_fetch_series_uses_v2(home, monkeypatch):
 
     def fake_http(url, method="GET", headers=None, data=None):
         captured["url"], captured["data"] = url, json.loads(data)
-        return 200, [], json.dumps({"data": {"userSeriesList": [
+        return 200, [], json.dumps({"data": {"seriesList": [
             {"id": "s1", "name": "회고 시리즈", "posts_count": 3},
         ]}}).encode()
 

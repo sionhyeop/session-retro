@@ -1,9 +1,21 @@
 # 이미지 만들기 가이드 — "내 데이터로 만드는" 블로그 이미지
 
-원칙: AI 생성 일러스트 대신 **실제 세션·실제 데이터·실제 화면**에서 이미지를 만든다.
-그게 오리지널리티다. 자동 생성 가능한 이미지는 4종이고, 전부
+## 대원칙 2가지
+
+1. **정리된 HTML이 없으면 만들어서 찍는다.** 프로젝트의 기능·데이터·결과물 중 보여줄 것이
+   있는데 시각 자료가 없다면, 그것을 보여주는 HTML 페이지를 즉석에서 만들어 렌더링한다.
+   카메라·AI·차트 같은 기능도 대부분 HTML 안에서 데모 형태로 재현할 수 있다 — "찍을 게 없다"는
+   결론을 내리기 전에 항상 "HTML로 만들 수 있지 않나?"를 먼저 자문한다.
+   CSV·JSON·로그 같은 데이터도 표·타일·막대 HTML로 렌더링하면 인사이트 이미지가 된다(E 참조).
+2. **항상 가로형(너비 > 높이)으로 찍는다.** 블로그 본문에 딱 맞게 들어가는 규격:
+   - 기본·썸네일 겸용: **1200×630** / 로그·코드 카드: 1200×480 / 표·데이터 카드: 최대 1200×700
+   - 내용이 세로로 길면 한 장에 욱여넣지 말고 **여러 장으로 분할**한다.
+   - 세로로 긴 페이지(랜딩 등)는 전체 캡처 금지 — 대표 영역만 가로 크롭.
+
+AI 생성 일러스트 대신 **실제 세션·실제 데이터·실제 화면**에서 이미지를 만든다.
+그게 오리지널리티다. 생성은 전부
 `python3 "$HOME/.claude/skills/retro/scripts/html_shot.py" <html> <out.png> --width W --height H`
-로 만든다. 결과는 `retro/assets/auto/<YYYY-MM-DDTHH-MM-SS>-<설명>.png`에 저장.
+로 하고, 결과는 `retro/assets/auto/<YYYY-MM-DDTHH-MM-SS>-<설명>.png`에 저장한다.
 
 ## A. 코드/로그 카드 — 시행착오의 증거
 
@@ -77,6 +89,41 @@ mermaid 코드블록을 본문에 넣으면 발행 시 자동으로 이미지(kr
   추린 임시 HTML을 만들어 찍는 편이 깔끔하다)
 - 개발 중인 웹앱: 로컬 서버가 떠 있으면 그 URL 대신 정적 파일로 저장해 찍거나,
   사용자에게 실물 스크린샷을 요청한다(브라우저 상호작용이 필요한 화면은 실물이 낫다).
+
+## E. 데이터 인사이트 카드 — CSV/JSON을 이미지로
+
+측정치·집계·비교 데이터는 표 + CSS 막대로 렌더링한다. 값은 반드시 실데이터에서 가져온다.
+
+```html
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:linear-gradient(135deg,#111418,#1b2340);min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  font-family:-apple-system,"Segoe UI","Pretendard","Malgun Gothic",sans-serif;color:#e8eaed}
+.wrap{width:1100px;padding:36px}
+h1{font-size:30px;margin:0 0 22px}
+.row{display:grid;grid-template-columns:220px 1fr 90px;gap:14px;align-items:center;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:19px}
+.bar{height:22px;border-radius:6px;background:linear-gradient(90deg,#7aa2f7,#3d59a1)}
+.val{text-align:right;color:#7aa2f7;font-weight:700}
+.dim{color:#9aa0a6;font-size:15px;margin-top:14px}
+</style></head><body><div class="wrap">
+<h1>제목 — 예: 세션별 도구 호출 수</h1>
+<div class="row"><span>항목 A</span><div class="bar" style="width:90%"></div><b class="val">228</b></div>
+<div class="row"><span>항목 B</span><div class="bar" style="width:35%"></div><b class="val">89</b></div>
+<p class="dim">출처: retro/.timeline/inventory.md (실측)</p>
+</div></body></html>
+```
+
+- 막대 width%는 최대값 대비 비율로 계산한다. 행이 7개를 넘으면 상위 N개 + "기타"로 줄이거나 분할.
+
+## F. 기능 데모 페이지 — 앱·기능을 HTML로 재현해 찍기
+
+글이 다루는 기능(웹 UI, 카메라 프리뷰 레이아웃, AI 응답 화면, 채팅 흐름 등)의 **대표 장면**을
+보여주는 데모 HTML을 만들어 찍는다. 실제 앱을 띄우기 어려울 때 특히 유용하다.
+
+- 실동작이 아니라 "장면 재현"임을 캡션에 밝힌다(정직성): *실제 UI를 재현한 데모 화면입니다*
+- 앱의 실제 CSS/컴포넌트가 저장소에 있으면 그대로 가져다 쓴다 — 재현도가 오리지널리티다.
+- 상호작용 결과(예: AI 응답)는 세션에 남은 실제 출력물을 붙여넣는다.
 
 ## 슬롯을 채울 수 없을 때
 

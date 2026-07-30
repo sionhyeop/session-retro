@@ -13,7 +13,7 @@ description: Claude Code 세션의 시행착오를 에피소드(주제 단위) �
 ## 0. 초기화와 모드 판정
 
 1. 구조가 없으면 생성:
-   `mkdir -p retro/archive retro/assets/auto retro/assets/inbox retro/specs retro/out/blog retro/out/ppt retro/.timeline`
+   `mkdir -p retro/archive retro/assets/auto retro/assets/inbox retro/specs retro/snapshots retro/out/blog retro/out/ppt retro/.timeline`
    (retro/가 생기면 이후 세션부터 백업 훅이 이 프로젝트에서 활성화된다.)
    `retro/config.md`가 없으면 아래 템플릿으로 생성한다:
 
@@ -172,7 +172,8 @@ updated: YYYY-MM-DD
 
 ## 7. 이미지 큐레이션
 
-1. `ls -l --time-style=+%Y-%m-%dT%H:%M retro/assets/auto/ retro/assets/inbox/ 2>/dev/null`
+1. `ls -l --time-style=+%Y-%m-%dT%H:%M retro/assets/auto/ retro/assets/inbox/ retro/snapshots/*/ 2>/dev/null`
+   (snapshots의 진화 시리즈는 "발전 과정" 서사에 최적의 재료다)
 2. 파일명 타임스탬프(우선) 또는 수정 시각을 세션 타임라인과 대조해 후보 구간을 추정한다.
 3. 각 이미지를 Read로 직접 열어 내용을 확인하고, 어느 에피소드의 어느 섹션에 어울리는지 제안한다.
 4. **사용자 승인 후** 스펙에 `![캡션](assets/…)`로 기록한다. 캡션 초안도 함께 제안.
@@ -184,6 +185,14 @@ updated: YYYY-MM-DD
 retro/가 있는 프로젝트에서 브라우저 검증 스크린샷을 찍을 때는
 `retro/assets/auto/<YYYY-MM-DDTHH-MM-SS>-<설명>.png` 사본을 남긴다.
 (프로젝트 CLAUDE.md에 이 관례를 한 줄 적어두면 다른 세션에서도 유지된다.)
+
+## 8-1. 진화 스냅샷 관례
+
+핵심 HTML 산출물(콘텐츠 맵, 덱, 랜딩, 앱 화면 등)의 **구조·디자인이 의미 있게 바뀌면**
+버전을 보존한다 — 나중 회고에서 "이것이 어떻게 진화했는지"를 이미지 시리즈로 보여주는 재료가 된다:
+`python3 "<skill-dir>/scripts/snapshot.py" <html파일> "<무엇이 바뀌었나 라벨>"`
+→ `retro/snapshots/<이름>/<타임스탬프>-<라벨>.html + .png` (HTML은 5MB 이하일 때만, PNG는 항상).
+스냅샷을 깜빡한 과거 버전은 git 히스토리에서 파일을 꺼내 재생성해 소급 보존할 수 있다.
 
 ## 9. 콘텐츠 맵 갱신 + 완료 보고
 

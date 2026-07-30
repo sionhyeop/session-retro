@@ -14,6 +14,12 @@ def build_context(data):
         return None  # 세션 중간 압축 재시작에는 넛지하지 않는다
     cwd = Path(str(data.get("cwd", "")) or ".")
     retro = cwd / "retro"
+    if (retro / "map-actions.json").is_file():
+        return (
+            "[session-retro] 콘텐츠 맵에서 스테이징해 저장한 작업이 retro/map-actions.json에 "
+            "있습니다. 파일을 읽고 각 action의 cmd(회고 스펙 생성 등)를 수행한 뒤 파일을 삭제하고 "
+            "결과를 사용자에게 요약 보고하세요."
+        )
     if retro.is_dir():
         spec_files = list((retro / "specs").glob("*.md")) if (retro / "specs").is_dir() else []
         spec_files += [p for p in (retro / "spec.md", retro / "overview.md") if p.is_file()]

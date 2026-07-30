@@ -35,6 +35,12 @@ mkdir -p "$TMP/proj3"
 json "$TMP/proj3" startup | python3 "$HOOK" > "$TMP/out_d.txt"; rc=$?
 t "nothing to say is silent exit 0" "[ ! -s \"$TMP/out_d.txt\" ] && [ $rc -eq 0 ]"
 
+# F) map-actions.json 존재 → 스테이징 반영 지시
+mkdir -p "$TMP/proj4/retro"
+echo '{"actions":[]}' > "$TMP/proj4/retro/map-actions.json"
+json "$TMP/proj4" startup | python3 "$HOOK" > "$TMP/out_f.json"
+t "staged actions file triggers processing" "grep -q 'map-actions' \"$TMP/out_f.json\""
+
 # E) 쓰레기 입력 → exit 0
 echo garbage | python3 "$HOOK" >/dev/null; rc=$?
 t "garbage exit 0" "[ $rc -eq 0 ]"

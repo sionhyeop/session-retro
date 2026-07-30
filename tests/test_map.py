@@ -157,6 +157,10 @@ def test_backlog_renders_with_copy_bridge(tmp_path):
     assert "pptx 개발기" in html and "훅 문구" in html
     assert 'data-cmd="' in html and "이어서" in html and "clipboard" in html  # 클릭→복사 브리지
     assert "회고 스펙을 만들어줘" in html  # planned 단계의 다음 액션 지시문
+    assert 'class="pick"' in html and "stagebar" in html  # 스테이징 UI (담기→일괄 처리)
+    assert "map-actions.json" in html  # 저장→AI 반영 루프 안내
+    assert "velog에 올라간 글" in html  # 발행물 velog 박스
+    assert "background:#ffffff !important" in html  # 강제 흰 바탕
     nxt = bm.next_suggestion([], [], backlog)
     assert nxt["kind"] == "backlog" and nxt["title"] == "pptx 개발기"
 

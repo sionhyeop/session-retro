@@ -306,6 +306,12 @@ def render_html(episodes, days, assets, project_name, backlog=None, story=None):
     def go_btn(cmd):
         return f'<button class="go" data-cmd="{html.escape(cmd, quote=True)}">▶ 이어서</button>'
 
+    def pick(kind, title, cmd):
+        """스테이징 체크박스 — 여러 글감을 담아 일괄 지시하거나 파일로 저장한다."""
+        item = html.escape(json.dumps({"type": kind, "title": title, "cmd": cmd},
+                                      ensure_ascii=False), quote=True)
+        return f'<label class="pickwrap"><input type="checkbox" class="pick" data-item="{item}">담기</label>'
+
     # 프로젝트 연대기 — 글 단위 박스: 같은 글을 다루는 연속 챕터는 하나로 합쳐져 있다
     chapters_html = []
     for ch in story:
@@ -320,8 +326,9 @@ def render_html(episodes, days, assets, project_name, backlog=None, story=None):
             cls = f"covered stage-{ep['stage']}"
         else:
             title, detail = ch["title"], ch["summary"]
+            cmd = f"'{ch['title']}' 파트의 회고 스펙을 만들어줘 ({ch['period']})"
             tag = ('<span class="tag uncovered-tag">✍️ 미작성</span> '
-                   + go_btn(f"'{ch['title']}' 파트의 회고 스펙을 만들어줘 ({ch['period']})"))
+                   + go_btn(cmd) + " " + pick("chapter", ch["title"], cmd))
             cls = "uncovered"
         chapters_html.append(f"""
   <div class="node {cls}">
@@ -356,17 +363,23 @@ def render_html(episodes, days, assets, project_name, backlog=None, story=None):
     plan_cards = []
     for b in backlog:
         basis = f"근거: {b['basis']}" if b["basis"] else "기획"
+        cmd = NEXT_ACTION["planned"](b["title"])
         plan_cards.append(f'<div class="kcard stage-planned"><b>{html.escape(b["title"][:40])}</b>'
                           f'<span class="dim">{html.escape(b["hook"])} · {html.escape(basis)}</span>'
-                          f'{go_btn(NEXT_ACTION["planned"](b["title"]))}</div>')
+                          f'<span class="row">{go_btn(cmd)}{pick("backlog", b["title"], cmd)}</span></div>')
 
-    # 발행물(에피소드) 요약 칩 — 비공개·공개는 '발행' 한 묶음으로
-    chips = []
-    for e in episodes:
+    # 발행물 — velog에 올라간 글은 로고 달린 박스로, 작업 중인 것은 별도 칩으로
+    def chip(e):
         gap = f" · ⚠️{len(e['gaps'])}" if e["gaps"] else ""
         link = f' <a href="{html.escape(e["url"])}">글</a>' if e["url"] else ""
-        chips.append(f'<span class="chip stage-{e["stage"]}">{_pub_state(e["stage"])}{gap} — '
-                     f'{html.escape(e["title"][:30])}{link} {go_btn(NEXT_ACTION[e["stage"]](e["title"]))}</span>')
+        return (f'<span class="chip stage-{e["stage"]}">{_pub_state(e["stage"])}{gap} — '
+                f'{html.escape(e["title"][:30])}{link} {go_btn(NEXT_ACTION[e["stage"]](e["title"]))}</span>')
+
+    published_chips = [chip(e) for e in episodes if e["stage"].startswith("published")]
+    working_chips = [chip(e) for e in episodes if not e["stage"].startswith("published")
+                     and e["stage"] != "planned"]
+    velog_icon = ('<img src="assets/icons/velog-color.svg" width="18" height="18" '
+                  'style="vertical-align:-3px;margin-right:7px" onerror="this.style.display=\'none\'">')
 
     nxt_html = ""
     if nxt:
@@ -378,51 +391,65 @@ def render_html(episodes, days, assets, project_name, backlog=None, story=None):
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>콘텐츠 맵 — {html.escape(project_name)}</title>
 <style>
-:root {{ --bg:#111418; --fg:#e8eaed; --dim:#9aa0a6; --accent:#7aa2f7; --card:#1b2027; --line:#2a313b;
-  --c-spec:#7aa2f7; --c-draft:#e0af68; --c-priv:#bb9af7; --c-pub:#9ece6a; }}
-@media (prefers-color-scheme: light) {{ :root {{ --bg:#f7f8fa; --fg:#1b2027; --dim:#5f6672; --accent:#3b6fd4; --card:#fff; --line:#dde2e9; }} }}
+/* 강제 흰 바탕 — 깔끔한 한국식 UI (다크 모드 무시) */
+:root {{ --bg:#ffffff; --fg:#191f28; --dim:#8b95a1; --accent:#3182f6; --card:#ffffff;
+  --line:#e5e8eb; --soft:#f9fafb; --mint:#12b886;
+  --c-spec:#3182f6; --c-draft:#f2a33c; --c-priv:#8b5cf6; --c-pub:#12b886; }}
 * {{ margin:0; padding:0; box-sizing:border-box; }}
-body {{ background:var(--bg); color:var(--fg); line-height:1.6; padding:40px 24px;
+body {{ background:#ffffff !important; color:var(--fg); line-height:1.6; padding:44px 24px 120px;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif; }}
 main {{ max-width:820px; margin:0 auto; }}
-h1 {{ font-size:32px; }} h2 {{ font-size:20px; margin:30px 0 12px; color:var(--accent); }}
+h1 {{ font-size:30px; letter-spacing:-.4px; }}
+h2 {{ font-size:19px; margin:34px 0 12px; letter-spacing:-.3px; }}
 .dim {{ color:var(--dim); font-size:13.5px; display:block; }}
-.stats {{ display:flex; gap:26px; margin:16px 0 4px; }}
-.stats b {{ font-size:30px; color:var(--accent); }} .stats span {{ color:var(--dim); font-size:14px; display:block; }}
-.next {{ background:var(--card); border:1px solid var(--accent); border-radius:12px; padding:12px 16px; margin:14px 0; }}
+.stats {{ display:flex; gap:12px; margin:18px 0 6px; }}
+.stats > div {{ background:var(--soft); border-radius:14px; padding:12px 18px; min-width:104px; }}
+.stats b {{ font-size:26px; color:var(--accent); letter-spacing:-.5px; }}
+.stats span {{ color:var(--dim); font-size:13px; display:block; }}
+.next {{ background:#f0f6ff; border-radius:14px; padding:13px 18px; margin:14px 0; font-size:14.5px; }}
 .chips {{ display:flex; flex-wrap:wrap; gap:8px; }}
 .chip {{ background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-size:14px; }}
-.chip i {{ color:var(--dim); font-style:normal; font-size:12.5px; }}
-a {{ color:var(--accent); }}
+a {{ color:var(--accent); text-decoration:none; }} a:hover {{ text-decoration:underline; }}
 .flow {{ position:relative; margin-top:8px; padding-left:8px; }}
 .node {{ display:flex; gap:16px; padding:10px 0 10px 8px; border-left:3px solid var(--line); }}
 .node .when {{ width:92px; color:var(--dim); font-size:13.5px; padding-top:2px; flex-shrink:0; }}
-.node .body {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; flex:1; }}
-.node .body b {{ font-size:15px; }}
+.node .body {{ background:var(--card); border:1px solid var(--line); border-radius:14px;
+  padding:12px 16px; flex:1; box-shadow:0 1px 3px rgba(25,31,40,.04); }}
+.node .body b {{ font-size:15px; letter-spacing:-.2px; }}
 .node.covered.stage-spec {{ border-left-color:var(--c-spec); }}
 .node.covered.stage-draft {{ border-left-color:var(--c-draft); }}
 .node.covered.stage-published_private {{ border-left-color:var(--c-priv); }}
 .node.covered.stage-published_public {{ border-left-color:var(--c-pub); }}
-.node.uncovered .body {{ border-style:dashed; opacity:.85; }}
-.tag {{ display:inline-block; margin-top:6px; font-size:13px; border-radius:999px; padding:2px 12px; background:rgba(122,162,247,.12); }}
-.uncovered-tag {{ background:transparent; border:1px dashed var(--line); color:var(--dim); }}
+.node.uncovered .body {{ border-style:dashed; background:#fbfcfd; }}
+.tag {{ display:inline-block; margin-top:7px; font-size:12.5px; border-radius:999px; padding:3px 12px;
+  background:#f2f4f6; color:#4e5968; }}
+.uncovered-tag {{ background:#fff; border:1px dashed #d1d6db; color:var(--dim); }}
 .plan-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(235px,1fr)); gap:11px; }}
-.kcard {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px;
-  display:flex; flex-direction:column; gap:4px; font-size:13.5px; }}
-.kcard b {{ font-size:14px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2;
-  -webkit-box-orient:vertical; overflow:hidden; }}
+.kcard {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+  display:flex; flex-direction:column; gap:5px; font-size:13.5px; box-shadow:0 1px 3px rgba(25,31,40,.04); }}
+.kcard b {{ font-size:14px; line-height:1.4; letter-spacing:-.2px; display:-webkit-box;
+  -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
 .kcard .dim {{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
-.kcard.stage-planned {{ border-style:dashed; }}
-.kcard.stage-spec {{ border-left:3px solid var(--c-spec); }}
-.kcard.stage-draft {{ border-left:3px solid var(--c-draft); }}
-.kcard.stage-published_private {{ border-left:3px solid var(--c-priv); }}
-.kcard.stage-published_public {{ border-left:3px solid var(--c-pub); }}
-.go {{ align-self:flex-start; margin-top:4px; background:transparent; border:1px solid var(--accent);
-  color:var(--accent); border-radius:999px; padding:3px 14px; font-size:12.5px; cursor:pointer;
-  font-family:inherit; }}
-.go:hover {{ background:rgba(122,162,247,.15); }}
-#toast {{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--accent);
-  color:var(--bg); border-radius:999px; padding:9px 22px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; }}
+.kcard.stage-planned {{ border-style:dashed; background:#fbfcfd; }}
+.kcard .row {{ display:flex; align-items:center; gap:10px; }}
+.go {{ align-self:flex-start; margin-top:4px; background:#f0f6ff; border:none; color:var(--accent);
+  border-radius:999px; padding:5px 14px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; }}
+.go:hover {{ background:#e0edff; }}
+.pickwrap {{ font-size:12.5px; color:var(--dim); display:inline-flex; align-items:center; gap:4px;
+  cursor:pointer; margin-top:4px; }}
+.pick {{ accent-color:var(--accent); width:15px; height:15px; cursor:pointer; }}
+.velog-box {{ background:#f3fcf8; border:1px solid #c3ecd9; border-radius:16px; padding:14px 18px; }}
+.velog-box .vb-head {{ font-weight:700; font-size:15px; margin-bottom:10px; letter-spacing:-.2px; }}
+.velog-box .vb-head i {{ font-style:normal; color:var(--mint); margin-left:4px; }}
+.velog-box .chip {{ background:#fff; }}
+#stagebar {{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:none;
+  align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:999px;
+  padding:10px 20px; box-shadow:0 8px 28px rgba(25,31,40,.14); z-index:10; white-space:nowrap; }}
+#stagebar b {{ color:var(--accent); font-size:14px; }}
+#stagebar .dim {{ display:inline; font-size:12px; }}
+#toast {{ position:fixed; bottom:78px; left:50%; transform:translateX(-50%); background:#191f28;
+  color:#fff; border-radius:999px; padding:9px 22px; font-size:13.5px; opacity:0;
+  transition:opacity .25s; pointer-events:none; z-index:11; }}
 </style></head><body><main>
 <h1>콘텐츠 맵</h1>
 <p class="dim">{html.escape(project_name)} · 생성 {now} · 범례: {legend} · <b>▶ 이어서</b>를 누르면 다음 작업 지시문이 복사됩니다 — Claude Code에 붙여넣으세요</p>
@@ -439,9 +466,20 @@ a {{ color:var(--accent); }}
 <h2>앞으로 쓸 것들 — 기획 백로그</h2>
 <div class="plan-grid">{''.join(plan_cards) or '<span class="dim">비어 있음 — "콘텐츠 기획해줘"로 채우세요 (retro/plan.md)</span>'}</div>
 <h2>발행물</h2>
-<div class="chips">{''.join(chips) or '<span class="dim">아직 없음 — /retro로 시작</span>'}</div>
-<p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신됩니다.</p>
-<div id="toast">복사됨 ✓ Claude Code에 붙여넣으세요</div>
+<div class="velog-box">
+  <div class="vb-head">{velog_icon}velog에 올라간 글 <i>{len(published_chips)}</i></div>
+  <div class="chips">{''.join(published_chips) or '<span class="dim">아직 없음 — 첫 발행을 기다리는 중</span>'}</div>
+</div>
+{f'<p class="dim" style="margin-top:12px">작업 중</p><div class="chips">{"".join(working_chips)}</div>' if working_chips else ''}
+<p class="dim" style="margin-top:26px">/retro · /retro-blog · /retro-ppt 실행 시 자동 갱신됩니다.
+글감 카드의 "담기"로 여러 건을 스테이징하면 아래 바에서 일괄 처리할 수 있어요.</p>
+<div id="stagebar">
+  <b id="stagecount"></b>
+  <button class="go" id="copyall">📋 일괄 지시문 복사</button>
+  <button class="go" id="saveall">💾 map-actions.json 저장</button>
+  <span class="dim">retro/ 폴더에 저장하면 다음 세션에서 Claude가 읽고 반영해요</span>
+</div>
+<div id="toast"></div>
 <script>
   function copyText(t) {{
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
@@ -450,14 +488,47 @@ a {{ color:var(--accent); }}
     document.execCommand("copy"); document.body.removeChild(ta);
     return Promise.resolve();
   }}
+  function toast(msg) {{
+    var el = document.getElementById("toast");
+    el.textContent = msg; el.style.opacity = "1";
+    setTimeout(function () {{ el.style.opacity = "0"; }}, 2100);
+  }}
   document.addEventListener("click", function (e) {{
     var btn = e.target.closest(".go");
-    if (!btn) return;
-    copyText(btn.dataset.cmd).then(function () {{
-      var toast = document.getElementById("toast");
-      toast.style.opacity = "1";
-      setTimeout(function () {{ toast.style.opacity = "0"; }}, 1600);
-    }});
+    if (!btn || !btn.dataset.cmd) return;
+    copyText(btn.dataset.cmd).then(function () {{ toast("복사됨 ✓ Claude Code에 붙여넣으세요"); }});
+  }});
+  var staged = [];
+  document.addEventListener("change", function (e) {{
+    if (!e.target.classList.contains("pick")) return;
+    var item = JSON.parse(e.target.dataset.item);
+    if (e.target.checked) staged.push(item);
+    else staged = staged.filter(function (i) {{ return i.title !== item.title; }});
+    var bar = document.getElementById("stagebar");
+    bar.style.display = staged.length ? "flex" : "none";
+    document.getElementById("stagecount").textContent = "스테이징 " + staged.length + "건";
+  }});
+  document.getElementById("copyall").addEventListener("click", function () {{
+    if (!staged.length) return;
+    copyText(staged.map(function (i) {{ return i.cmd; }}).join("\\n"))
+      .then(function () {{ toast("지시문 " + staged.length + "건 복사됨 ✓ Claude Code에 붙여넣으세요"); }});
+  }});
+  document.getElementById("saveall").addEventListener("click", async function () {{
+    if (!staged.length) return;
+    var payload = JSON.stringify({{ created: new Date().toISOString(), actions: staged }}, null, 2);
+    try {{
+      if (window.showSaveFilePicker) {{
+        var h = await showSaveFilePicker({{ suggestedName: "map-actions.json",
+          types: [{{ accept: {{ "application/json": [".json"] }} }}] }});
+        var w = await h.createWritable(); await w.write(payload); await w.close();
+        toast("저장됨 ✓ retro/ 폴더에 두면 다음 세션에서 반영돼요");
+        return;
+      }}
+    }} catch (err) {{ if (err && err.name === "AbortError") return; }}
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([payload], {{ type: "application/json" }}));
+    a.download = "map-actions.json"; a.click();
+    toast("다운로드됨 — retro/ 폴더로 옮겨두면 다음 세션에서 반영돼요");
   }});
 </script>
 </main></body></html>"""

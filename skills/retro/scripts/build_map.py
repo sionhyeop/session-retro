@@ -158,6 +158,21 @@ def parse_story(retro_dir):
     return chapters
 
 
+def merge_story_chapters(chapters):
+    """같은 글(slug)을 다루는 연속 챕터를 한 박스로 합친다 — 지도는 '글 단위'로 읽힌다.
+
+    세부 챕터들은 합쳐진 박스의 내부 흐름(parts)으로 보존된다."""
+    merged = []
+    for ch in chapters:
+        prev = merged[-1] if merged else None
+        if prev and ch["slug"] and ch["slug"] == prev["slug"]:
+            prev["period"] = f"{prev['period'].split(' ~ ')[0]} ~ {ch['period']}"
+            prev["parts"].append(ch["title"])
+            continue
+        merged.append({**ch, "parts": [ch["title"]]})
+    return merged
+
+
 def story_coverage(chapters, episodes):
     by_slug = {e["slug"]: e for e in episodes if e.get("slug")}
     total = len(chapters)
@@ -291,23 +306,27 @@ def render_html(episodes, days, assets, project_name, backlog=None, story=None):
     def go_btn(cmd):
         return f'<button class="go" data-cmd="{html.escape(cmd, quote=True)}">▶ 이어서</button>'
 
-    # 프로젝트 연대기 — 시간 흐름 위에 '어느 파트가 글이 되었나'
+    # 프로젝트 연대기 — 글 단위 박스: 같은 글을 다루는 연속 챕터는 하나로 합쳐져 있다
     chapters_html = []
     for ch in story:
         ep = ch.get("episode")
+        parts = ch.get("parts") or [ch["title"]]
         if ep:
+            title = ep["title"]  # 박스 = 블로그 글 하나
+            detail = " → ".join(parts) if len(parts) > 1 else ch["summary"]
             link = f' <a href="{html.escape(ep["url"])}">글 보기</a>' if ep["url"] else ""
             tag = (f'<span class="tag stage-{ep["stage"]}">{_pub_state(ep["stage"])}</span>{link} '
                    + go_btn(NEXT_ACTION[ep["stage"]](ep["title"])))
             cls = f"covered stage-{ep['stage']}"
         else:
+            title, detail = ch["title"], ch["summary"]
             tag = ('<span class="tag uncovered-tag">✍️ 미작성</span> '
                    + go_btn(f"'{ch['title']}' 파트의 회고 스펙을 만들어줘 ({ch['period']})"))
             cls = "uncovered"
         chapters_html.append(f"""
   <div class="node {cls}">
     <div class="when">{html.escape(ch['period'])}</div>
-    <div class="body"><b>{html.escape(ch['title'])}</b><span class="dim">{html.escape(ch['summary'])}</span>{tag}</div>
+    <div class="body"><b>{html.escape(title)}</b><span class="dim">{html.escape(detail)}</span>{tag}</div>
   </div>""")
 
     # 타임라인 노드
@@ -478,7 +497,7 @@ def main(argv=None):
         return 1
     episodes = collect(retro)
     backlog = parse_backlog(retro)
-    story = parse_story(retro)
+    story = merge_story_chapters(parse_story(retro))
     days = assign_days(collect_timeline(repo=args.repo), episodes)
     text = render_html(episodes, days, assets_summary(retro), retro.resolve().parent.name,
                        backlog=backlog, story=story)

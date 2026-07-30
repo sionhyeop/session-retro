@@ -173,6 +173,37 @@ def test_parse_story(tmp_path):
     assert chapters[1]["slug"] == ""
 
 
+def test_merge_story_one_box_per_post():
+    chapters = [
+        {"period": "07-01", "title": "조사", "summary": "a", "slug": "auth"},
+        {"period": "07-02", "title": "구현", "summary": "b", "slug": "auth"},
+        {"period": "07-03", "title": "개선", "summary": "c", "slug": "auth"},
+        {"period": "07-04", "title": "배포", "summary": "d", "slug": ""},
+    ]
+    merged = bm.merge_story_chapters(chapters)
+    assert len(merged) == 2  # 같은 글의 연속 챕터 3개 → 박스 1개
+    assert merged[0]["period"] == "07-01 ~ 07-03"
+    assert merged[0]["parts"] == ["조사", "구현", "개선"]  # 내부 흐름 보존
+    assert merged[1]["title"] == "배포"
+
+
+def test_merged_chapter_renders_as_single_post_box(tmp_path):
+    retro = make_retro(tmp_path)
+    ep = {"slug": "auth", "title": "인증 삽질기", "period": "", "dates": None, "updated": "",
+          "problems": [], "gaps": [], "images": 0, "stage": "published_public",
+          "deck": False, "url": "https://velog.io/@u/s"}
+    merged = bm.merge_story_chapters([
+        {"period": "07-01", "title": "조사", "summary": "a", "slug": "auth"},
+        {"period": "07-02", "title": "구현", "summary": "b", "slug": "auth"},
+    ])
+    cov = bm.story_coverage(merged, [ep])
+    assert cov["total"] == 1  # 커버리지도 글 단위
+    html = bm.render_html([ep], [], bm.assets_summary(retro), "p", story=merged)
+    assert html.count("발행 · 공개") >= 1
+    assert "조사 → 구현" in html  # 합쳐진 박스 안에 내부 흐름 표기
+    assert html.count('<div class="node covered') == 1  # 글 하나 = 박스 하나
+
+
 def test_story_chapter_view_and_grouped_publish_badge(tmp_path):
     retro = make_retro(tmp_path)
     ep = {"slug": "auth", "title": "인증 삽질기", "period": "", "dates": None, "updated": "",
@@ -185,7 +216,7 @@ def test_story_chapter_view_and_grouped_publish_badge(tmp_path):
     cov = bm.story_coverage(chapters, [ep])
     assert (cov["total"], cov["covered"], cov["published"]) == (2, 1, 1)
     html = bm.render_html([ep], [], bm.assets_summary(retro), "p", story=chapters)
-    assert "프로젝트 연대기" in html and "초기 기능 구축" in html
+    assert "프로젝트 연대기" in html and "인증 삽질기" in html  # 커버된 박스 = 글 제목
     assert "발행 · 비공개" in html  # 비공개·공개가 '발행' 한 묶음으로 표기
     assert "✍️ 미작성" in html and "성능 개선" in html
     assert "파트의 회고 스펙을 만들어줘" in html  # 미작성 챕터 → 지시문 브리지 (따옴표는 속성 이스케이프됨)
